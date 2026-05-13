@@ -32,6 +32,12 @@ body {
   border-radius: 4px;
 }
 .sidebar-btn:hover { background: #16213e; border-color: var(--border); }
+.sidebar-btn.active {
+  background: rgba(79, 195, 247, 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.sidebar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .tab-bar {

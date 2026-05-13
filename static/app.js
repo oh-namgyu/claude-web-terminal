@@ -546,9 +546,15 @@ async function submitNewAgent() {
 function _updateNotifyBtn() {
     const btn = document.getElementById('agentsNotifyBtn');
     if (!('Notification' in window)) { btn.disabled = true; btn.title = 'Notifications not supported'; return; }
-    const granted = Notification.permission === 'granted';
+    const perm = Notification.permission;
+    const granted = perm === 'granted';
     btn.textContent = granted ? '🔔' : '🔕';
-    btn.title = granted ? 'Idle notifications enabled' : 'Click to enable idle notifications';
+    btn.classList.toggle('active', granted);
+    btn.title = granted
+        ? 'Notifications: ON — click to send a test toast'
+        : perm === 'denied'
+            ? 'Notifications: BLOCKED by browser — unblock in site settings'
+            : 'Notifications: OFF — click to enable';
 }
 
 document.getElementById('agentsNotifyBtn').addEventListener('click', async () => {
