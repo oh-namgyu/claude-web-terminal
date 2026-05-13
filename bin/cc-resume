@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+'use strict';
+
+// cc-resume <sessionId | id-prefix>
+//
+// `claude --resume` only finds sessions whose cwd matches the current shell.
+// This helper resolves the session's original cwd (from transcript content
+// or from the directory-name slug via backtracking) and execs `claude
+// --resume` there.
+
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const { _cwdFromTranscript, _cwdFromSlug, CC_PROJECTS_DIR } = require('../lib/cc-sessions');
+
+const id = process.argv[2];
+if (!id) {
+    console.error('usage: cc-resume <sessionId | id-prefix>');
+    process.exit(2);
+}
+
+if (!fs.existsSync(CC_PROJECTS_DIR)) {
+    console.error(`error: ${CC_PROJECTS_DIR} not found`);
+    process.exit(1);
+}
+
+const matches = [];
+for (const slug of fs.readdirSync(CC_PROJECTS_DIR)) {
+    const dir = path.join(CC_PROJECTS_DIR, slug);
+    if (!fs.statSync(dir).isDirectory()) continue;
+    for (const f of fs.readdirSync(dir)) {
+        if (!f.endsWith('.jsonl')) continue;
+        const sid = f.slice(0, -6);
+        if (sid.startsWith(id)) matches.push({ sid, slug, file: path.join(dir, f) });
+    }
+}
+
+if (matches.length === 0) {
+    console.error(`error: no session matches '${id}'`);
+    process.exit(1);
+}
+if (matches.length > 1) {
+    console.error('error: multiple matches — use a longer prefix:');
+    for (const m of matches) console.error(`  ${m.sid}  (${m.slug})`);
+    process.exit(1);
+}
+
+const { sid, slug, file } = matches[0];
+const cwd = _cwdFromTranscript(file) || _cwdFromSlug(slug);
+
+if (!cwd || !fs.existsSync(cwd)) {
+    console.error(`error: could not resolve cwd for session ${sid}`);
+    console.error(`  slug: ${slug}`);
+    if (cwd) console.error(`  resolved: ${cwd} (does not exist)`);
+    process.exit(1);
+}
+
+console.error(`→ cd ${cwd} && claude --resume ${sid}`);
+spawn('claude', ['--resume', sid], { cwd, stdio: 'inherit' })
+    .on('exit', code => process.exit(code || 0))
+    .on('error', e => {
+        console.error(`error: failed to spawn claude — ${e.message}`);
+        process.exit(1);
+    });
