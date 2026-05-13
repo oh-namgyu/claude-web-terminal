@@ -38,6 +38,18 @@ body {
   box-shadow: 0 0 0 1px var(--accent) inset;
 }
 .sidebar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Strikethrough overlay — font-independent off-state indicator for the
+   notification toggle. Diagonal red bar drawn via gradient. */
+.sidebar-btn.notify-off { opacity: 0.55; }
+.sidebar-btn.notify-off::after {
+  content: '';
+  position: absolute;
+  left: 3px; right: 3px; top: 50%;
+  height: 2px; background: var(--err);
+  transform: rotate(-25deg); transform-origin: center;
+  pointer-events: none;
+}
+.sidebar-btn { position: relative; }
 
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .tab-bar {
