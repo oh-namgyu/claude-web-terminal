@@ -111,7 +111,12 @@ app.use('/api/', (req, res, next) => {
     next();
 });
 
-app.use(express.static(path.join(__dirname, 'static')));
+// `must-revalidate` forces the browser to re-check on every load, so a
+// `git pull && npm start` doesn't leave the user staring at a cached UI.
+app.use(express.static(path.join(__dirname, 'static'), {
+    etag: true,
+    setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache, must-revalidate'),
+}));
 
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
