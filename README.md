@@ -43,11 +43,13 @@ stop <id>` — the same commands you'd run yourself.
 `claude-web-terminal` is a small Node/Express server that exposes a web UI
 with:
 
-- A real Claude Code terminal in your browser (via [xterm.js](https://xtermjs.org/) + [node-pty](https://github.com/microsoft/node-pty)) — multiple tabs.
-- A side panel that lists every active background session **and** every live interactive session (VS Code, raw shell, …), with names, last assistant response, token usage, branch, and message count.
-- One-click **attach** in a new tab or current tab.
-- ➕ **create** a new background session with a prompt.
-- 🗑 **stop** a session.
+- A real Claude Code terminal in your browser (via [xterm.js](https://xtermjs.org/) + [node-pty](https://github.com/microsoft/node-pty)) — multiple tabs with WebSocket auto-reconnect.
+- A side panel that lists every active background session, every live interactive session, and every resumable past session — with names, last assistant response, token usage, branch, and message count.
+- One-click **attach** (new or current tab) and **resume** for past sessions (auto-resolves the original cwd).
+- ➕ **create**, ✏️ **rename**, 🗑 **stop**, ⭐ **pin** sessions.
+- 🔎 search + ⏱ time filter (2d / 5d / 7d / 2w / 1m) for quickly finding a session.
+- 🔔 desktop notifications when a background session goes from working → idle.
+- Model toggle (Opus / Sonnet / Haiku) and keyboard shortcuts (`Cmd+T/W/K/1-9`).
 - An optional IME-friendly input bar that fixes Safari's broken Korean/Chinese/Japanese composition inside xterm.js.
 
 ## Quick start
