@@ -153,17 +153,17 @@ let _bgStatusPrev = {};
 let _lastBusyKey = '';
 setInterval(() => {
     if (_sseClients.size === 0) return;
-    let bg;
-    try { ({ bg = [] } = listSessions()); }
+    let bg, interactive;
+    try { ({ bg = [], interactive = [] } = listSessions()); }
     catch { return; }
+
+    // Notifications: only on bg sessions. Interactive sessions are
+    // already in front of the user in another window/terminal, so the
+    // toast would be noise.
     const seen = new Set();
     for (const s of bg) {
         seen.add(s.id);
         const prev = _bgStatusPrev[s.id];
-        // CC v2.1.x writes status as one of: 'busy' (turn in progress),
-        // 'waiting' (turn paused awaiting user input), 'idle' (finished).
-        // Both `busy → waiting` and `busy → idle` mean "needs the user's
-        // attention now", so we fire on any transition out of 'busy'.
         if (prev === 'busy' && s.status !== 'busy') {
             console.log(`[cwt] notify: ${s.id} busy → ${s.status}`);
             _sseBroadcast({
@@ -180,16 +180,21 @@ setInterval(() => {
     }
     for (const id of Object.keys(_bgStatusPrev)) if (!seen.has(id)) delete _bgStatusPrev[id];
 
-    // Snapshot of currently-busy sessions for the main-view indicator.
-    // Re-broadcast only when the set or the lastUser/lastAssistant changes.
-    const busy = bg.filter(s => s.status === 'busy').map(s => ({
+    // Busy indicator: cover bg + interactive so the user sees every Claude
+    // turn that's still running, no matter where it was launched from.
+    const toBusy = (kind) => (s) => ({
         id: s.id,
+        kind,
         name: s.name || s.id.slice(0, 8),
         cwd: s.cwd || '',
         lastUser: (s.lastUser || '').slice(0, 120),
         lastAssistant: (s.lastAssistant || '').slice(0, 120),
         msgCount: s.msgCount || 0,
-    }));
+    });
+    const busy = [
+        ...bg.filter(s => s.status === 'busy').map(toBusy('bg')),
+        ...interactive.filter(s => s.status === 'busy').map(toBusy('interactive')),
+    ];
     const busyKey = JSON.stringify(busy);
     if (busyKey !== _lastBusyKey) {
         _lastBusyKey = busyKey;

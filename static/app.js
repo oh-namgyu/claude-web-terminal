@@ -269,7 +269,8 @@ function _renderBusyTooltip() {
         row.className = 'busy-tooltip-row';
         const name = document.createElement('div');
         name.className = 'busy-tooltip-name';
-        name.textContent = `⚙️ ${s.name}`;
+        const kindLabel = s.kind === 'interactive' ? '💬' : '⚡';
+        name.textContent = `${kindLabel} ${s.name}`;
         row.appendChild(name);
         const msg = document.createElement('div');
         msg.className = 'busy-tooltip-msg';
