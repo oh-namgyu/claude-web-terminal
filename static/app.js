@@ -46,6 +46,7 @@ function closeTab(id) {
     const idx = tabs.findIndex(t => t.id === id);
     if (idx === -1) return;
     const t = tabs[idx];
+    t.closed = true;
     try { if (t.ws) t.ws.close(); } catch {}
     try { if (t.term) t.term.dispose(); } catch {}
     tabs.splice(idx, 1);
@@ -77,6 +78,44 @@ function activateTab(id) {
     renderTabs();
 }
 
+function _wsQueryFor(tab) {
+    if (tab.attachId) return `?attach=${encodeURIComponent(tab.attachId)}`;
+    if (tab.resumeId) {
+        let q = `?resume=${encodeURIComponent(tab.resumeId)}`;
+        if (tab.resumeCwd) q += `&cwd=${encodeURIComponent(tab.resumeCwd)}`;
+        return q;
+    }
+    return '';
+}
+
+function _scheduleReconnect(tab) {
+    if (tab.closed) return;
+    tab.reconnectAttempts = (tab.reconnectAttempts || 0) + 1;
+    if (tab.reconnectAttempts > 5) {
+        tab.term.write('\r\n\x1b[31m[reconnect failed — close & reopen tab]\x1b[0m\r\n');
+        return;
+    }
+    const delay = Math.min(8000, 1000 * 2 ** (tab.reconnectAttempts - 1));
+    tab.term.write(`\r\n\x1b[33m[reconnecting in ${delay / 1000}s… attempt ${tab.reconnectAttempts}/5]\x1b[0m\r\n`);
+    setTimeout(() => { if (!tab.closed) _openWs(tab); }, delay);
+}
+
+function _openWs(tab) {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    tab.ws = new WebSocket(`${proto}://${location.host}/${_wsQueryFor(tab)}`);
+    tab.ws.onopen = () => {
+        if (tab.reconnectAttempts) tab.term.write('\r\n\x1b[32m[reconnected]\x1b[0m\r\n');
+        tab.reconnectAttempts = 0;
+        tab.term.focus();
+    };
+    tab.ws.onmessage = e => tab.term.write(e.data);
+    tab.ws.onclose = () => {
+        if (tab.closed) return;
+        tab.term.write('\r\n\x1b[90m[disconnected]\x1b[0m\r\n');
+        _scheduleReconnect(tab);
+    };
+}
+
 function connectTab(tab) {
     const container = document.getElementById('terminal');
     container.innerHTML = '';
@@ -89,18 +128,10 @@ function connectTab(tab) {
     tab.term.loadAddon(tab.fitAddon);
     tab.term.open(container);
     tab.fitAddon.fit();
+    tab.reconnectAttempts = 0;
+    tab.closed = false;
 
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    let query = '';
-    if (tab.attachId) query = `?attach=${encodeURIComponent(tab.attachId)}`;
-    else if (tab.resumeId) {
-        query = `?resume=${encodeURIComponent(tab.resumeId)}`;
-        if (tab.resumeCwd) query += `&cwd=${encodeURIComponent(tab.resumeCwd)}`;
-    }
-    tab.ws = new WebSocket(`${proto}://${location.host}/${query}`);
-    tab.ws.onopen = () => { tab.term.focus(); };
-    tab.ws.onmessage = e => tab.term.write(e.data);
-    tab.ws.onclose = () => tab.term.write('\r\n\x1b[90m[disconnected]\x1b[0m\r\n');
+    _openWs(tab);
     tab.term.onData(data => {
         if (tab.ws && tab.ws.readyState === WebSocket.OPEN) tab.ws.send(data);
     });
@@ -180,6 +211,34 @@ function _sortByPinned(items, metadataMap) {
 
 let _activeDays = 0;
 
+// Track status per session to detect working→idle transitions and notify.
+const _prevStatus = {};
+let _statusBaselineDone = false;
+
+function _notifySessionIdle(s) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    const n = new Notification('Claude session idle', {
+        body: `${s.name || s.id.slice(0, 8)} finished working`,
+        tag: `cc-idle-${s.id}`,
+    });
+    n.onclick = () => { window.focus(); openSessionInNewTab(s.id); n.close(); };
+}
+
+function _checkStatusTransitions(bg) {
+    const seen = new Set();
+    for (const s of bg) {
+        seen.add(s.id);
+        const prev = _prevStatus[s.id];
+        if (_statusBaselineDone && prev === 'working' && s.status === 'idle') {
+            _notifySessionIdle(s);
+        }
+        _prevStatus[s.id] = s.status;
+    }
+    for (const id of Object.keys(_prevStatus)) if (!seen.has(id)) delete _prevStatus[id];
+    _statusBaselineDone = true;
+}
+
 function _applyFilters() {
     const q = (document.getElementById('agentsSearchInput').value || '').toLowerCase().trim();
     const cutoff = _activeDays > 0 ? Date.now() - _activeDays * 86400000 : 0;
@@ -215,6 +274,7 @@ async function loadCCSessions() {
     try {
         const isDemo = new URLSearchParams(location.search).get('demo') === '1';
         const { bg = [], interactive = [] } = isDemo ? _DEMO_DATA : await (await fetch('/api/cc-sessions')).json();
+        if (!isDemo) _checkStatusTransitions(bg);
         const resumable = isDemo ? [] : await (await fetch('/api/cc-resume-sessions')).json().catch(() => []);
 
         // Preload metadata for all sessions
@@ -393,7 +453,7 @@ function openSessionInNewTab(attachId) {
 function openSessionInCurrentTab(attachId) {
     if (activeIdx < 0) { addTab({ attachId }); return; }
     const t = tabs[activeIdx];
-    try { if (t.ws) t.ws.close(); } catch {}
+    if (t.ws) { t.ws.onclose = null; try { t.ws.close(); } catch {} }
     try { if (t.term) t.term.dispose(); } catch {}
     t.attachId = attachId;
     t.term = null; t.ws = null; t.fitAddon = null;
@@ -458,6 +518,21 @@ async function submitNewAgent() {
         btns[0].textContent = 'Create';
     }
 }
+
+function _updateNotifyBtn() {
+    const btn = document.getElementById('agentsNotifyBtn');
+    if (!('Notification' in window)) { btn.disabled = true; btn.title = 'Notifications not supported'; return; }
+    const granted = Notification.permission === 'granted';
+    btn.textContent = granted ? '🔔' : '🔕';
+    btn.title = granted ? 'Idle notifications enabled' : 'Click to enable idle notifications';
+}
+
+document.getElementById('agentsNotifyBtn').addEventListener('click', async () => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') await Notification.requestPermission();
+    _updateNotifyBtn();
+});
+_updateNotifyBtn();
 
 document.getElementById('agentsBtn').addEventListener('click', toggleAgentsPanel);
 document.getElementById('agentsNewBtn').addEventListener('click', openNewAgentForm);
@@ -610,6 +685,31 @@ document.getElementById('editSessionName').addEventListener('keydown', (e) => {
 });
 
 document.getElementById('agentsSearchInput').addEventListener('input', _applyFilters);
+
+// Global shortcuts: Cmd/Ctrl + (T new tab, W close tab, K focus search,
+// 1-9 switch to nth tab). Skipped during IME composition so they don't
+// fight Korean/Chinese/Japanese input.
+document.addEventListener('keydown', (e) => {
+    if (e.isComposing) return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (!mod) return;
+    if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        addTab();
+    } else if (e.key === 'w' || e.key === 'W') {
+        if (activeIdx < 0) return;
+        e.preventDefault();
+        closeTab(tabs[activeIdx].id);
+    } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        const panel = document.getElementById('agentsPanel');
+        if (!panel.classList.contains('open')) toggleAgentsPanel();
+        document.getElementById('agentsSearchInput').focus();
+    } else if (/^[1-9]$/.test(e.key)) {
+        const n = parseInt(e.key, 10) - 1;
+        if (tabs[n]) { e.preventDefault(); activateTab(tabs[n].id); }
+    }
+});
 
 document.querySelectorAll('.time-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
