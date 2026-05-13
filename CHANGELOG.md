@@ -2,6 +2,24 @@
 
 All notable changes to claude-web-terminal.
 
+## v0.6.0 — 2026-05-13
+
+### Added
+- **Server-Sent Events channel** (`/api/cc-events`) — the server now pushes session events to the client. Survives background-tab `setInterval` throttling, so idle notifications fire even when the page isn't in front.
+- **In-app keyboard shortcuts help modal** — ⌨️ button in the sidebar opens a card with OS-aware modifier labels (`⌘` on macOS, `Ctrl` elsewhere).
+- **User-toggleable mute** — bell button is now an actual on/off switch. `localStorage.cwt.notify` persists the preference independently of the browser permission.
+- **`Cache-Control: no-cache, must-revalidate`** on static assets so a `npm start` after a pull reaches the browser without a forced reload.
+
+### Fixed
+- **Notification trigger condition** — previously watched for a non-existent `working → !working` transition. Claude Code v2.1.x writes `busy / waiting / idle`; the server now fires on any `busy → !busy` and tags the event with `reason` (`'needs input'` vs `'finished'`).
+- **Session card status icons** — now show `⚙️` (busy) / `⏳` (waiting) / `⏸` (idle) instead of treating the real values as "unknown".
+- **Bell off-state visibility** — `🔕` vs `🔔` was indistinguishable on some emoji fonts. Replaced with a CSS-drawn red diagonal strike + dimmed opacity, font-agnostic.
+- **CHANGELOG v0.1.0 cwd note** — original wording claimed `?cwd=` was removed; actually it's restricted to the resume flow with server-side validation. Corrected.
+
+### Changed
+- **Notification & help buttons moved from panel header to sidebar** — reachable without opening the Agent panel.
+- **Panel polling decoupled from notifications** — polling is now strictly UI-refresh; notifications come from SSE.
+
 ## v0.5.0 — 2026-05-13
 
 ### Added
