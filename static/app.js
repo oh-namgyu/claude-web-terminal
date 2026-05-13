@@ -329,7 +329,10 @@ async function loadCCSessions() {
             return;
         }
         const renderCard = (s, attachable) => {
-            const status = (s.status === 'idle') ? '⏸' : (s.status === 'working') ? '⚙️' : '●';
+            const status = s.status === 'busy' ? '⚙️'
+                : s.status === 'waiting' ? '⏳'
+                : s.status === 'idle' ? '⏸'
+                : '●';
             const cwdShort = s.cwd ? s.cwd.replace(/^\/Users\/[^/]+/, '~').replace(/^\/home\/[^/]+/, '~').split('/').slice(-2).join('/') : '';
             const branch = s.branch && s.branch !== 'HEAD' ? `@${s.branch}` : '';
             const idShort = (s.id || '').slice(0, 12);

@@ -159,8 +159,21 @@ setInterval(() => {
     for (const s of bg) {
         seen.add(s.id);
         const prev = _bgStatusPrev[s.id];
-        if (prev === 'working' && s.status === 'idle') {
-            _sseBroadcast({ type: 'idle', id: s.id, name: s.name || s.id.slice(0, 8) });
+        // CC v2.1.x writes status as one of: 'busy' (turn in progress),
+        // 'waiting' (turn paused awaiting user input), 'idle' (finished).
+        // Both `busy → waiting` and `busy → idle` mean "needs the user's
+        // attention now", so we fire on any transition out of 'busy'.
+        if (prev === 'busy' && s.status !== 'busy') {
+            console.log(`[cwt] notify: ${s.id} busy → ${s.status}`);
+            _sseBroadcast({
+                type: 'idle',
+                id: s.id,
+                name: s.name || s.id.slice(0, 8),
+                reason: s.status === 'waiting' ? 'needs input' : 'finished',
+            });
+        }
+        if (prev !== undefined && prev !== s.status) {
+            console.log(`[cwt] status: ${s.id.slice(0, 8)} ${prev} → ${s.status}`);
         }
         _bgStatusPrev[s.id] = s.status;
     }
