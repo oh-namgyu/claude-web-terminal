@@ -79,6 +79,23 @@ By default a new random token is generated on every restart. Set
 `AUTH_TOKEN=<your-value>` in `.env` if you want the bootstrap URL to stay
 the same across restarts.
 
+## Keyboard shortcuts
+
+The modifier is **⌘ Command** on macOS and **Ctrl** on Windows / Linux.
+Shortcuts are suppressed while an IME composition is active so they don't
+fight Korean / Chinese / Japanese input.
+
+| Action                                    | macOS         | Windows / Linux |
+| ----------------------------------------- | ------------- | --------------- |
+| New tab                                   | `⌘ T`         | `Ctrl + T`      |
+| Close active tab                          | `⌘ W`         | `Ctrl + W`      |
+| Open Agent panel + focus search           | `⌘ K`         | `Ctrl + K`      |
+| Switch to nth tab (1–9)                   | `⌘ 1` … `⌘ 9` | `Ctrl + 1` … `Ctrl + 9` |
+
+> Most browsers also bind `Ctrl/⌘ + T` and `Ctrl/⌘ + W` for browser tabs.
+> The page handler calls `preventDefault()` so the browser-level binding
+> won't fire while the app is focused.
+
 ## CLI helper: `cc-resume`
 
 `claude --resume <id>` only finds sessions whose original cwd matches
