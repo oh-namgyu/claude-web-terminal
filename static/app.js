@@ -147,16 +147,25 @@ window.addEventListener('resize', () => {
 let _pollTimer = null;
 let _lastRenderedCards = [];
 
-function toggleAgentsPanel() {
+function _notificationsActive() {
+    return ('Notification' in window) && Notification.permission === 'granted';
+}
+
+function _ensurePolling() {
     const panel = document.getElementById('agentsPanel');
-    if (panel.classList.contains('open')) {
-        panel.classList.remove('open');
-        if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
-    } else {
-        panel.classList.add('open');
+    const want = panel.classList.contains('open') || _notificationsActive();
+    if (want && !_pollTimer) {
         loadCCSessions();
         _pollTimer = setInterval(loadCCSessions, 3000);
+    } else if (!want && _pollTimer) {
+        clearInterval(_pollTimer); _pollTimer = null;
     }
+}
+
+function toggleAgentsPanel() {
+    const panel = document.getElementById('agentsPanel');
+    panel.classList.toggle('open');
+    _ensurePolling();
 }
 
 function _fmtAgo(ms) {
@@ -541,7 +550,6 @@ document.getElementById('agentsNotifyBtn').addEventListener('click', async () =>
     if (Notification.permission === 'default') {
         await Notification.requestPermission();
     } else if (Notification.permission === 'granted') {
-        // Already granted — fire a test toast so the user can confirm the OS pipeline works.
         try {
             new Notification('claude-web-terminal', { body: 'Test notification — pipeline OK.', tag: 'cwt-test' });
         } catch (e) {
@@ -549,8 +557,10 @@ document.getElementById('agentsNotifyBtn').addEventListener('click', async () =>
         }
     }
     _updateNotifyBtn();
+    _ensurePolling();
 });
 _updateNotifyBtn();
+_ensurePolling();
 
 const _IS_MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 const _MOD = _IS_MAC ? '⌘' : 'Ctrl';
@@ -572,11 +582,11 @@ document.getElementById('newAgentCancelBtn').addEventListener('click', closeNewA
 
 document.addEventListener('click', (e) => {
     const panel = document.getElementById('agentsPanel');
-    const btn = document.getElementById('agentsBtn');
+    const sidebar = document.querySelector('.sidebar');
     if (!panel.classList.contains('open')) return;
-    if (panel.contains(e.target) || btn.contains(e.target)) return;
+    if (panel.contains(e.target) || (sidebar && sidebar.contains(e.target))) return;
     panel.classList.remove('open');
-    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    _ensurePolling();
 });
 
 // ===== IME-friendly input bar =====
