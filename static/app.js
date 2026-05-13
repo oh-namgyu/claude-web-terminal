@@ -114,6 +114,7 @@ window.addEventListener('resize', () => {
 
 // ===== Agent View panel =====
 let _pollTimer = null;
+let _lastRenderedCards = [];
 
 function toggleAgentsPanel() {
     const panel = document.getElementById('agentsPanel');
@@ -140,6 +141,20 @@ function _fmtTokens(t) {
     if (total < 1000) return total + 'tok';
     if (total < 1000000) return (total / 1000).toFixed(1) + 'k';
     return (total / 1000000).toFixed(1) + 'M';
+}
+
+function _applySessionFilter(query) {
+    const q = query.toLowerCase().trim();
+    if (!q) {
+        _lastRenderedCards.forEach(card => card.style.display = '');
+        return;
+    }
+    _lastRenderedCards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        const id = card.dataset.sessionId?.toLowerCase() || '';
+        const match = text.includes(q) || id.includes(q);
+        card.style.display = match ? '' : 'none';
+    });
 }
 
 // `?demo=1` 쿼리로 합성 데이터 표시 (스크린샷용). 모든 값을 명백한 placeholder로 유지.
@@ -170,6 +185,9 @@ async function loadCCSessions() {
             } catch {}
         }
         list.replaceChildren();
+        _lastRenderedCards = [];
+        document.getElementById('agentsSearchInput').value = '';
+
         if (bg.length === 0 && interactive.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'agents-empty';
@@ -192,7 +210,10 @@ async function loadCCSessions() {
             const idShort = (s.id || '').slice(0, 12);
 
             const card = document.createElement('div');
-            card.className = 'agent-card' + (attachable ? '' : ' interactive');
+            const isPinned = metadataMap[s.id]?.pinned === true;
+            card.className = 'agent-card' + (attachable ? '' : ' interactive') + (isPinned ? ' pinned' : '');
+            card.dataset.sessionId = s.id;
+            _lastRenderedCards.push(card);
 
             const nameEl = document.createElement('div');
             nameEl.className = 'agent-card-name';
@@ -248,6 +269,11 @@ async function loadCCSessions() {
             if (attachable) {
                 const actions = document.createElement('div');
                 actions.className = 'agent-card-actions';
+                const pinBtn = document.createElement('button');
+                const isPinned = metadataMap[s.id]?.pinned === true;
+                pinBtn.textContent = isPinned ? '⭐' : '☆';
+                pinBtn.title = isPinned ? 'Unpin session' : 'Pin session';
+                pinBtn.addEventListener('click', () => togglePinSession(s.id, !isPinned));
                 const newTabBtn = document.createElement('button');
                 newTabBtn.textContent = '➕ new tab';
                 newTabBtn.addEventListener('click', () => openSessionInNewTab(s.id));
@@ -259,7 +285,7 @@ async function loadCCSessions() {
                 stopBtn.title = 'Stop session';
                 stopBtn.textContent = '🗑';
                 stopBtn.addEventListener('click', () => stopSession(s.id, s.name));
-                actions.append(newTabBtn, curBtn, stopBtn);
+                actions.append(pinBtn, newTabBtn, curBtn, stopBtn);
                 card.appendChild(actions);
             } else {
                 const note = document.createElement('div');
@@ -277,14 +303,23 @@ async function loadCCSessions() {
             t.className = 'agents-section-title';
             t.textContent = title;
             section.appendChild(t);
-            items.forEach(s => section.appendChild(renderCard(s, attachable)));
+            const sorted = [...items].sort((a, b) => {
+                const aPinned = metadataMap[a.id]?.pinned === true ? 1 : 0;
+                const bPinned = metadataMap[b.id]?.pinned === true ? 1 : 0;
+                if (aPinned !== bPinned) return bPinned - aPinned;
+                return b.updatedAt - a.updatedAt;
+            });
+            sorted.forEach(s => section.appendChild(renderCard(s, attachable)));
             list.appendChild(section);
         };
         const renderResumableCard = (s) => {
             const idShort = (s.id || '').slice(0, 12);
             const branch = s.branch && s.branch !== 'HEAD' ? `@${s.branch}` : '';
             const card = document.createElement('div');
-            card.className = 'agent-card resumable';
+            const isPinned = metadataMap[s.id]?.pinned === true;
+            card.className = 'agent-card resumable' + (isPinned ? ' pinned' : '');
+            card.dataset.sessionId = s.id;
+            _lastRenderedCards.push(card);
 
             const nameEl = document.createElement('div');
             nameEl.className = 'agent-card-name';
@@ -330,6 +365,18 @@ async function loadCCSessions() {
             }
             card.appendChild(meta);
 
+            const actions = document.createElement('div');
+            actions.className = 'agent-card-actions';
+            const pinBtn = document.createElement('button');
+            pinBtn.textContent = isPinned ? '⭐' : '☆';
+            pinBtn.title = isPinned ? 'Unpin session' : 'Pin session';
+            pinBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePinSession(s.id, !isPinned); });
+            const openBtn = document.createElement('button');
+            openBtn.textContent = '↪️ resume';
+            openBtn.addEventListener('click', (e) => { e.stopPropagation(); addTab({ resumeId: s.id, resumeCwd: s.cwd }); });
+            actions.append(pinBtn, openBtn);
+            card.appendChild(actions);
+
             card.addEventListener('click', () => {
                 addTab({ resumeId: s.id, resumeCwd: s.cwd });
             });
@@ -344,7 +391,13 @@ async function loadCCSessions() {
             t.className = 'agents-section-title';
             t.textContent = '📌 Past Sessions (resumable)';
             section.appendChild(t);
-            resumable.forEach(s => section.appendChild(renderResumableCard(s)));
+            const sorted = [...resumable].sort((a, b) => {
+                const aPinned = metadataMap[a.id]?.pinned === true ? 1 : 0;
+                const bPinned = metadataMap[b.id]?.pinned === true ? 1 : 0;
+                if (aPinned !== bPinned) return bPinned - aPinned;
+                return b.updatedAt - a.updatedAt;
+            });
+            sorted.forEach(s => section.appendChild(renderResumableCard(s)));
             list.appendChild(section);
         }
     } catch (e) {
@@ -378,6 +431,21 @@ async function stopSession(id, name) {
         await loadCCSessions();
     } catch (e) {
         alert('Stop failed: ' + e.message);
+    }
+}
+
+async function togglePinSession(id, pinned) {
+    try {
+        const r = await fetch(`/api/cc-sessions/${encodeURIComponent(id)}/metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pinned })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'failed');
+        await loadCCSessions();
+    } catch (e) {
+        alert('Pin failed: ' + e.message);
     }
 }
 
@@ -560,6 +628,10 @@ document.getElementById('editModalSave').addEventListener('click', async () => {
 document.getElementById('editSessionName').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('editModalSave').click();
     else if (e.key === 'Escape') closeEditModal();
+});
+
+document.getElementById('agentsSearchInput').addEventListener('input', (e) => {
+    _applySessionFilter(e.target.value);
 });
 
 // 데모 모드일 때는 실제 PTY 안 띄움 — 터미널 영역에 placeholder만 표시 (스크린샷에 zsh 프롬프트 노출 방지)
