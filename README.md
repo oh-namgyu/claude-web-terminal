@@ -48,7 +48,7 @@ with:
 - One-click **attach** (new or current tab) and **resume** for past sessions (auto-resolves the original cwd).
 - ➕ **create**, ✏️ **rename**, 🗑 **stop**, ⭐ **pin** sessions.
 - 🔎 search + ⏱ time filter (2d / 5d / 7d / 2w / 1m) for quickly finding a session.
-- 🔔 desktop notifications when a background session goes from working → idle.
+- 🔔 desktop notifications when a background session leaves the `busy` state (either `→ waiting` for input or `→ idle` when finished). Delivered via Server-Sent Events so they survive background-tab timer throttling.
 - Model toggle (Opus / Sonnet / Haiku) and keyboard shortcuts (`Cmd+T/W/K/1-9`).
 - An optional IME-friendly input bar that fixes Safari's broken Korean/Chinese/Japanese composition inside xterm.js.
 
@@ -123,9 +123,12 @@ cc-resume 71fc583c        # prefix is enough if unambiguous
 | Session metadata (name, status, kind, cwd, sessionId) | `~/.claude/sessions/<pid>.json` | undocumented internal |
 | Transcript (last response, token usage, branch, msg count) | `~/.claude/projects/<cwd-slug>/<sessionUUID>.jsonl` | undocumented internal |
 | `attach` / `stop` / `--bg` | Public `claude` CLI subcommands | stable |
+| `status` values (`busy` / `waiting` / `idle`) | Field in the session metadata; the server polls it every 2s and pushes notifications over SSE | undocumented internal — pinned by [`server.js`](server.js) |
 
 The session listing relies on three undocumented paths. If a future Claude
 Code release changes them, edit [`lib/cc-sessions.js`](lib/cc-sessions.js).
+The notification trigger reads the same `status` field; adjust the
+state machine in [`server.js`](server.js) if CC introduces new values.
 
 ## Agent View panel
 
