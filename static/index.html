@@ -45,9 +45,31 @@
                 placeholder="IME-friendly input. Enter sends. Starts with / @ # → live mode."
                 autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
       <span class="ime-mode" id="imeMode">buffered</span>
+      <div class="model-toggle" title="Switch model in the active tab">
+        <button data-model="opus" class="model-btn">Opus</button>
+        <button data-model="sonnet" class="model-btn">Sonnet</button>
+        <button data-model="haiku" class="model-btn">Haiku</button>
+      </div>
       <button class="btn-primary" id="imeSend">Send</button>
     </div>
   </main>
+</div>
+
+<div class="modal" id="editSessionModal" hidden>
+  <div class="modal-content">
+    <div class="modal-header">
+      <span>Edit Session Name</span>
+      <button class="modal-close" id="editModalClose">×</button>
+    </div>
+    <div class="modal-body">
+      <label>Session ID: <code id="editSessionId"></code></label>
+      <input type="text" id="editSessionName" placeholder="Enter new name" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="editModalCancel">Cancel</button>
+      <button class="btn-primary" id="editModalSave">Save</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"

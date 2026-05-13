@@ -3,6 +3,7 @@
 require('dotenv').config();
 
 const crypto = require('crypto');
+const fs = require('fs');
 const express = require('express');
 const http = require('http');
 const path = require('path');
@@ -11,7 +12,7 @@ const which = require('child_process').execSync;
 const { WebSocketServer } = require('ws');
 const pty = require('node-pty');
 
-const { listSessions, createSession, stopSession } = require('./lib/cc-sessions');
+const { listSessions, createSession, stopSession, listResumableSessions, updateSessionMetadata, getSessionMetadata } = require('./lib/cc-sessions');
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = parseInt(process.env.PORT || '8765', 10);
@@ -141,6 +142,33 @@ app.delete('/api/cc-sessions/:id', async (req, res) => {
     }
 });
 
+app.get('/api/cc-resume-sessions', (_req, res) => {
+    try { res.json(listResumableSessions()); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/cc-sessions/:id/metadata', (req, res) => {
+    const id = req.params.id;
+    if (!/^[a-f0-9-]{36}$|^[a-f0-9]{6,}$/i.test(id)) return res.status(400).json({ error: 'invalid id' });
+    try {
+        const meta = updateSessionMetadata(id, req.body);
+        res.json({ ok: true, metadata: meta });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/cc-sessions/:id/metadata', (req, res) => {
+    const id = req.params.id;
+    if (!/^[a-f0-9-]{36}$|^[a-f0-9]{6,}$/i.test(id)) return res.status(400).json({ error: 'invalid id' });
+    try {
+        const meta = getSessionMetadata(id);
+        res.json(meta);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Manual WS upgrade so we can authenticate before allocating a pty.
 server.on('upgrade', (req, socket, head) => {
     const ok = originAllowed(req) && hasValidAuth(req);
@@ -155,9 +183,18 @@ server.on('upgrade', (req, socket, head) => {
 wss.on('connection', (ws, req) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const attachId = url.searchParams.get('attach') || '';
-    // cwd is intentionally NOT taken from the URL — defaults only.
-    // Lets us avoid arbitrary-cwd-via-query as an attack vector.
-    const cwd = DEFAULT_CWD;
+    const resumeId = url.searchParams.get('resume') || '';
+    const resumeCwd = url.searchParams.get('cwd') || '';
+    // For resume sessions, use the original cwd if provided & safe.
+    // For attach, always use DEFAULT_CWD.
+    let cwd = DEFAULT_CWD;
+    if (resumeId && resumeCwd) {
+        // Basic safety: cwd must exist and be under /Users or /home
+        if ((resumeCwd.startsWith('/Users/') || resumeCwd.startsWith('/home/')) &&
+            fs.existsSync(resumeCwd)) {
+            cwd = resumeCwd;
+        }
+    }
 
     let term;
     try {
@@ -174,9 +211,12 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    const launchCmd = (attachId && /^[a-f0-9]+$/i.test(attachId))
-        ? `claude attach ${attachId}`
-        : 'claude';
+    let launchCmd = 'claude';
+    if (attachId && /^[a-f0-9]+$/i.test(attachId)) {
+        launchCmd = `claude attach ${attachId}`;
+    } else if (resumeId && /^[a-f0-9-]+$/i.test(resumeId)) {
+        launchCmd = `claude --resume ${resumeId}`;
+    }
     setTimeout(() => term.write(launchCmd + '\r'), 500);
 
     term.onData(d => { if (ws.readyState === ws.OPEN) ws.send(d); });

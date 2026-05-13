@@ -9,7 +9,9 @@ function renderTabs() {
     const bar = document.getElementById('tabBar');
     bar.replaceChildren();
     tabs.forEach((t, i) => {
-        const label = t.attachId ? `claude:${t.attachId.slice(0, 8)}` : `claude #${t.id}`;
+        const label = t.attachId ? `claude:${t.attachId.slice(0, 8)}`
+                    : t.resumeId ? `📌${t.resumeId.slice(0, 8)}`
+                    : `claude #${t.id}`;
         const div = document.createElement('div');
         div.className = 'tab' + (i === activeIdx ? ' active' : '');
         div.addEventListener('click', () => activateTab(t.id));
@@ -31,7 +33,9 @@ function renderTabs() {
 
 function addTab(opts) {
     const tab = { id: nextTabId++, term: null, ws: null, fitAddon: null,
-                   attachId: (opts && opts.attachId) || null };
+                   attachId: (opts && opts.attachId) || null,
+                   resumeId: (opts && opts.resumeId) || null,
+                   resumeCwd: (opts && opts.resumeCwd) || null };
     tabs.push(tab);
     activeIdx = tabs.length - 1;
     renderTabs();
@@ -87,8 +91,13 @@ function connectTab(tab) {
     tab.fitAddon.fit();
 
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const attachQ = tab.attachId ? `?attach=${encodeURIComponent(tab.attachId)}` : '';
-    tab.ws = new WebSocket(`${proto}://${location.host}/${attachQ}`);
+    let query = '';
+    if (tab.attachId) query = `?attach=${encodeURIComponent(tab.attachId)}`;
+    else if (tab.resumeId) {
+        query = `?resume=${encodeURIComponent(tab.resumeId)}`;
+        if (tab.resumeCwd) query += `&cwd=${encodeURIComponent(tab.resumeCwd)}`;
+    }
+    tab.ws = new WebSocket(`${proto}://${location.host}/${query}`);
     tab.ws.onopen = () => { tab.term.focus(); };
     tab.ws.onmessage = e => tab.term.write(e.data);
     tab.ws.onclose = () => tab.term.write('\r\n\x1b[90m[disconnected]\x1b[0m\r\n');
@@ -150,6 +159,16 @@ async function loadCCSessions() {
     try {
         const isDemo = new URLSearchParams(location.search).get('demo') === '1';
         const { bg = [], interactive = [] } = isDemo ? _DEMO_DATA : await (await fetch('/api/cc-sessions')).json();
+        const resumable = isDemo ? [] : await (await fetch('/api/cc-resume-sessions')).json().catch(() => []);
+
+        // Preload metadata for all sessions
+        const allIds = [...bg.map(s => s.id), ...resumable.map(s => s.id)];
+        const metadataMap = {};
+        for (const id of allIds) {
+            try {
+                metadataMap[id] = await fetch(`/api/cc-sessions/${id}/metadata`).then(r => r.json()).catch(() => ({}));
+            } catch {}
+        }
         list.replaceChildren();
         if (bg.length === 0 && interactive.length === 0) {
             const empty = document.createElement('div');
@@ -177,8 +196,27 @@ async function loadCCSessions() {
 
             const nameEl = document.createElement('div');
             nameEl.className = 'agent-card-name';
-            nameEl.textContent = `${status} ${s.name}`;
-            card.appendChild(nameEl);
+            const customName = metadataMap[s.id]?.name;
+            const displayName = customName || s.name;
+            nameEl.textContent = `${status} ${displayName}`;
+            const editBtn = document.createElement('button');
+            editBtn.textContent = '✏️';
+            editBtn.style.background = 'none';
+            editBtn.style.border = 'none';
+            editBtn.style.cursor = 'pointer';
+            editBtn.style.fontSize = '12px';
+            editBtn.style.padding = '0 4px';
+            editBtn.style.color = 'var(--muted)';
+            editBtn.addEventListener('click', () => openEditModal(s.id, displayName));
+            editBtn.addEventListener('mouseenter', () => editBtn.style.color = 'var(--accent)');
+            editBtn.addEventListener('mouseleave', () => editBtn.style.color = 'var(--muted)');
+            const nameContainer = document.createElement('div');
+            nameContainer.style.display = 'flex';
+            nameContainer.style.justifyContent = 'space-between';
+            nameContainer.style.alignItems = 'center';
+            nameContainer.style.gap = '4px';
+            nameContainer.append(nameEl, editBtn);
+            card.appendChild(nameContainer);
 
             if (s.lastAssistant) {
                 const last = document.createElement('div');
@@ -242,8 +280,73 @@ async function loadCCSessions() {
             items.forEach(s => section.appendChild(renderCard(s, attachable)));
             list.appendChild(section);
         };
+        const renderResumableCard = (s) => {
+            const idShort = (s.id || '').slice(0, 12);
+            const branch = s.branch && s.branch !== 'HEAD' ? `@${s.branch}` : '';
+            const card = document.createElement('div');
+            card.className = 'agent-card resumable';
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'agent-card-name';
+            const customName = metadataMap[s.id]?.name;
+            const displayName = customName || `📌 ${idShort}`;
+            nameEl.textContent = displayName;
+            const editBtn = document.createElement('button');
+            editBtn.textContent = '✏️';
+            editBtn.style.background = 'none';
+            editBtn.style.border = 'none';
+            editBtn.style.cursor = 'pointer';
+            editBtn.style.fontSize = '12px';
+            editBtn.style.padding = '0 4px';
+            editBtn.style.color = 'var(--muted)';
+            editBtn.addEventListener('click', () => openEditModal(s.id, displayName));
+            editBtn.addEventListener('mouseenter', () => editBtn.style.color = 'var(--accent)');
+            editBtn.addEventListener('mouseleave', () => editBtn.style.color = 'var(--muted)');
+            const nameContainer = document.createElement('div');
+            nameContainer.style.display = 'flex';
+            nameContainer.style.justifyContent = 'space-between';
+            nameContainer.style.alignItems = 'center';
+            nameContainer.style.gap = '4px';
+            nameContainer.append(nameEl, editBtn);
+            card.appendChild(nameContainer);
+            card.style.cursor = 'auto';
+
+            if (s.lastAssistant) {
+                const last = document.createElement('div');
+                last.className = 'agent-card-last';
+                last.title = s.lastAssistant;
+                last.textContent = `💬 ${s.lastAssistant}`;
+                card.appendChild(last);
+            }
+
+            const meta = document.createElement('div');
+            meta.className = 'agent-card-meta';
+            if (branch) meta.append(branch + ' · ');
+            if (s.msgCount) meta.append(`${s.msgCount} msgs · `);
+            if (s.tokens) meta.append(`${_fmtTokens(s.tokens)} · `);
+            if (s.updatedAt) meta.append(_fmtAgo(s.updatedAt));
+            if (meta.textContent.endsWith(' · ')) {
+                meta.textContent = meta.textContent.slice(0, -3);
+            }
+            card.appendChild(meta);
+
+            card.addEventListener('click', () => {
+                addTab({ resumeId: s.id, resumeCwd: s.cwd });
+            });
+            return card;
+        };
         renderSection('⚡ Background (attachable)', bg, true);
         renderSection('💬 Interactive (read-only)', interactive, false);
+        if (resumable.length > 0) {
+            const section = document.createElement('div');
+            section.className = 'agents-section';
+            const t = document.createElement('div');
+            t.className = 'agents-section-title';
+            t.textContent = '📌 Past Sessions (resumable)';
+            section.appendChild(t);
+            resumable.forEach(s => section.appendChild(renderResumableCard(s)));
+            list.appendChild(section);
+        }
     } catch (e) {
         list.replaceChildren(
             Object.assign(document.createElement('div'), { className: 'agents-empty', textContent: 'Error: ' + e.message })
@@ -396,6 +499,16 @@ imeInput.addEventListener('keydown', (e) => {
     }
 });
 
+document.querySelectorAll('.model-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const m = btn.dataset.model;
+        if (!m) return;
+        if (!sendToActive(`/model ${m}\r`)) {
+            alert('No active tab to switch model in.');
+        }
+    });
+});
+
 imeSend.addEventListener('click', () => {
     if (imeInput.value.length === 0) return;
     const pass = isPassthroughText(imeInput.value);
@@ -406,6 +519,48 @@ imeSend.addEventListener('click', () => {
 });
 
 updateImeMode();
+
+// ===== Session metadata edit modal =====
+function openEditModal(sessionId, currentName) {
+    const modal = document.getElementById('editSessionModal');
+    document.getElementById('editSessionId').textContent = sessionId.slice(0, 12);
+    document.getElementById('editSessionName').value = currentName;
+    modal.hidden = false;
+    document.getElementById('editSessionName').focus();
+    modal._currentSessionId = sessionId;
+}
+
+function closeEditModal() {
+    document.getElementById('editSessionModal').hidden = true;
+}
+
+document.getElementById('editModalClose').addEventListener('click', closeEditModal);
+document.getElementById('editModalCancel').addEventListener('click', closeEditModal);
+document.getElementById('editModalSave').addEventListener('click', async () => {
+    const modal = document.getElementById('editSessionModal');
+    const sessionId = modal._currentSessionId;
+    const newName = document.getElementById('editSessionName').value.trim();
+    if (!newName) {
+        alert('Name cannot be empty');
+        return;
+    }
+    try {
+        await fetch(`/api/cc-sessions/${sessionId}/metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName })
+        });
+        closeEditModal();
+        await loadCCSessions();
+    } catch (err) {
+        alert('Save failed: ' + err.message);
+    }
+});
+
+document.getElementById('editSessionName').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('editModalSave').click();
+    else if (e.key === 'Escape') closeEditModal();
+});
 
 // 데모 모드일 때는 실제 PTY 안 띄움 — 터미널 영역에 placeholder만 표시 (스크린샷에 zsh 프롬프트 노출 방지)
 const _params = new URLSearchParams(location.search);
