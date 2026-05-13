@@ -53,6 +53,13 @@
     <div class="terminal-wrap">
       <div id="terminal"></div>
     </div>
+    <div class="busy-bar" id="busyBar" hidden>
+      <button class="busy-chip" id="busyChip" type="button">
+        <span class="busy-spinner"></span>
+        <span><span id="busyCount">0</span> session(s) working…</span>
+      </button>
+      <div class="busy-tooltip" id="busyTooltip" hidden></div>
+    </div>
     <div class="ime-bar">
       <textarea id="imeInput" rows="1"
                 placeholder="IME-friendly input. Enter sends. Starts with / @ # → live mode."

@@ -150,6 +150,7 @@ function _sseBroadcast(payload) {
 }
 
 let _bgStatusPrev = {};
+let _lastBusyKey = '';
 setInterval(() => {
     if (_sseClients.size === 0) return;
     let bg;
@@ -178,6 +179,22 @@ setInterval(() => {
         _bgStatusPrev[s.id] = s.status;
     }
     for (const id of Object.keys(_bgStatusPrev)) if (!seen.has(id)) delete _bgStatusPrev[id];
+
+    // Snapshot of currently-busy sessions for the main-view indicator.
+    // Re-broadcast only when the set or the lastUser/lastAssistant changes.
+    const busy = bg.filter(s => s.status === 'busy').map(s => ({
+        id: s.id,
+        name: s.name || s.id.slice(0, 8),
+        cwd: s.cwd || '',
+        lastUser: (s.lastUser || '').slice(0, 120),
+        lastAssistant: (s.lastAssistant || '').slice(0, 120),
+        msgCount: s.msgCount || 0,
+    }));
+    const busyKey = JSON.stringify(busy);
+    if (busyKey !== _lastBusyKey) {
+        _lastBusyKey = busyKey;
+        _sseBroadcast({ type: 'busy', sessions: busy });
+    }
 }, 2000);
 
 app.post('/api/cc-sessions', async (req, res) => {

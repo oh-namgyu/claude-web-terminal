@@ -251,6 +251,39 @@ function _checkStatusTransitions(bg) {
 
 // Live event stream from server — survives background-tab throttling.
 let _sse = null;
+let _busySessions = [];
+
+function _renderBusyBar() {
+    const bar = document.getElementById('busyBar');
+    const count = document.getElementById('busyCount');
+    if (_busySessions.length === 0) { bar.hidden = true; return; }
+    bar.hidden = false;
+    count.textContent = _busySessions.length;
+}
+
+function _renderBusyTooltip() {
+    const tip = document.getElementById('busyTooltip');
+    tip.replaceChildren();
+    for (const s of _busySessions) {
+        const row = document.createElement('div');
+        row.className = 'busy-tooltip-row';
+        const name = document.createElement('div');
+        name.className = 'busy-tooltip-name';
+        name.textContent = `⚙️ ${s.name}`;
+        row.appendChild(name);
+        const msg = document.createElement('div');
+        msg.className = 'busy-tooltip-msg';
+        msg.textContent = s.lastUser ? `→ ${s.lastUser}` : s.lastAssistant ? `← ${s.lastAssistant}` : '(no message yet)';
+        row.appendChild(msg);
+        const meta = document.createElement('div');
+        meta.className = 'busy-tooltip-meta';
+        const cwdShort = s.cwd ? s.cwd.replace(/^\/Users\/[^/]+/, '~').split('/').slice(-2).join('/') : '';
+        meta.textContent = [s.id.slice(0, 8), cwdShort, s.msgCount ? `${s.msgCount} msgs` : ''].filter(Boolean).join(' · ');
+        row.appendChild(meta);
+        tip.appendChild(row);
+    }
+}
+
 function _connectSSE() {
     if (_sse || typeof EventSource === 'undefined') return;
     _sse = new EventSource('/api/cc-events');
@@ -258,11 +291,18 @@ function _connectSSE() {
         try {
             const d = JSON.parse(e.data);
             if (d.type === 'idle') _notifySessionIdle({ id: d.id, name: d.name });
+            else if (d.type === 'busy') { _busySessions = d.sessions || []; _renderBusyBar(); _renderBusyTooltip(); }
         } catch {}
     };
     _sse.onerror = () => { /* EventSource auto-reconnects */ };
 }
 _connectSSE();
+
+// Hover the chip to expand the tooltip.
+const _busyChip = document.getElementById('busyChip');
+const _busyTip = document.getElementById('busyTooltip');
+_busyChip.addEventListener('mouseenter', () => { if (_busySessions.length) _busyTip.hidden = false; });
+_busyChip.addEventListener('mouseleave', () => { _busyTip.hidden = true; });
 
 function _applyFilters() {
     const q = (document.getElementById('agentsSearchInput').value || '').toLowerCase().trim();
