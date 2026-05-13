@@ -227,15 +227,20 @@ function _notifySessionIdle(s) {
 
 function _checkStatusTransitions(bg) {
     const seen = new Set();
+    const transitions = [];
     for (const s of bg) {
         seen.add(s.id);
         const prev = _prevStatus[s.id];
+        if (prev !== undefined && prev !== s.status) {
+            transitions.push(`${s.id.slice(0, 8)}: ${prev} → ${s.status}`);
+        }
         if (_statusBaselineDone && prev === 'working' && s.status === 'idle') {
             _notifySessionIdle(s);
         }
         _prevStatus[s.id] = s.status;
     }
     for (const id of Object.keys(_prevStatus)) if (!seen.has(id)) delete _prevStatus[id];
+    if (transitions.length) console.debug('[cwt] status transitions:', transitions);
     _statusBaselineDone = true;
 }
 
@@ -528,8 +533,21 @@ function _updateNotifyBtn() {
 }
 
 document.getElementById('agentsNotifyBtn').addEventListener('click', async () => {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'default') await Notification.requestPermission();
+    if (!('Notification' in window)) { alert('This browser does not support notifications.'); return; }
+    if (Notification.permission === 'denied') {
+        alert('Notifications are blocked by the browser. Re-enable them in your browser/OS settings, then reload.');
+        return;
+    }
+    if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+    } else if (Notification.permission === 'granted') {
+        // Already granted — fire a test toast so the user can confirm the OS pipeline works.
+        try {
+            new Notification('claude-web-terminal', { body: 'Test notification — pipeline OK.', tag: 'cwt-test' });
+        } catch (e) {
+            alert('Notification.permission is "granted" but firing failed: ' + e.message);
+        }
+    }
     _updateNotifyBtn();
 });
 _updateNotifyBtn();
