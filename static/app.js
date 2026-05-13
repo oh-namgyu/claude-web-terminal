@@ -534,6 +534,18 @@ document.getElementById('agentsNotifyBtn').addEventListener('click', async () =>
 });
 _updateNotifyBtn();
 
+const _IS_MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+const _MOD = _IS_MAC ? '⌘' : 'Ctrl';
+document.getElementById('kbdT').textContent = `${_MOD} T`;
+document.getElementById('kbdW').textContent = `${_MOD} W`;
+document.getElementById('kbdK').textContent = `${_MOD} K`;
+document.getElementById('kbdN').textContent = `${_MOD} 1 … ${_MOD} 9`;
+
+const shortcutsModal = document.getElementById('shortcutsModal');
+document.getElementById('agentsHelpBtn').addEventListener('click', () => { shortcutsModal.hidden = false; });
+document.getElementById('shortcutsModalClose').addEventListener('click', () => { shortcutsModal.hidden = true; });
+shortcutsModal.addEventListener('click', (e) => { if (e.target === shortcutsModal) shortcutsModal.hidden = true; });
+
 document.getElementById('agentsBtn').addEventListener('click', toggleAgentsPanel);
 document.getElementById('agentsNewBtn').addEventListener('click', openNewAgentForm);
 document.getElementById('agentsRefreshBtn').addEventListener('click', loadCCSessions);

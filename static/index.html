@@ -18,6 +18,7 @@
     <div class="agents-panel-header">
       <span>Claude Code Sessions</span>
       <div class="agents-header-actions">
+        <button class="agents-btn-icon" id="agentsHelpBtn" title="Keyboard shortcuts">⌨️</button>
         <button class="agents-btn-icon" id="agentsNotifyBtn" title="Enable idle notifications">🔕</button>
         <button class="agents-btn-icon" id="agentsNewBtn" title="New background session">➕</button>
         <button class="agents-btn-icon" id="agentsRefreshBtn" title="Refresh">🔄</button>
@@ -80,6 +81,29 @@
     <div class="modal-footer">
       <button class="btn-secondary" id="editModalCancel">Cancel</button>
       <button class="btn-primary" id="editModalSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="shortcutsModal" hidden>
+  <div class="modal-content">
+    <div class="modal-header">
+      <span>Keyboard shortcuts</span>
+      <button class="modal-close" id="shortcutsModalClose">×</button>
+    </div>
+    <div class="modal-body">
+      <table class="shortcuts-table">
+        <tbody>
+          <tr><td>New tab</td><td><kbd id="kbdT"></kbd></td></tr>
+          <tr><td>Close active tab</td><td><kbd id="kbdW"></kbd></td></tr>
+          <tr><td>Open Agent panel + focus search</td><td><kbd id="kbdK"></kbd></td></tr>
+          <tr><td>Switch to nth tab (1–9)</td><td><kbd id="kbdN"></kbd></td></tr>
+        </tbody>
+      </table>
+      <div class="shortcuts-note">
+        Suppressed while an IME composition is active so they don't fight
+        Korean / Chinese / Japanese input.
+      </div>
     </div>
   </div>
 </div>
