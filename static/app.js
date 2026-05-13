@@ -223,6 +223,7 @@ let _statusBaselineDone = false;
 function _notifySessionIdle(s) {
     if (!('Notification' in window)) return;
     if (Notification.permission !== 'granted') return;
+    if (!_notifyUserEnabled()) return;
     const n = new Notification('Claude session idle', {
         body: `${s.name || s.id.slice(0, 8)} finished working`,
         tag: `cc-idle-${s.id}`,
@@ -543,19 +544,25 @@ async function submitNewAgent() {
     }
 }
 
+function _notifyUserEnabled() {
+    return localStorage.getItem('cwt.notify') !== 'off';
+}
+
 function _updateNotifyBtn() {
     const btn = document.getElementById('agentsNotifyBtn');
     if (!('Notification' in window)) { btn.disabled = true; btn.title = 'Notifications not supported'; return; }
     const perm = Notification.permission;
-    const granted = perm === 'granted';
+    const on = perm === 'granted' && _notifyUserEnabled();
     btn.textContent = '🔔';
-    btn.classList.toggle('active', granted);
-    btn.classList.toggle('notify-off', !granted);
-    btn.title = granted
-        ? 'Notifications: ON — click to send a test toast'
-        : perm === 'denied'
-            ? 'Notifications: BLOCKED by browser — unblock in site settings'
-            : 'Notifications: OFF — click to enable';
+    btn.classList.toggle('active', on);
+    btn.classList.toggle('notify-off', !on);
+    btn.title = perm === 'denied'
+        ? 'Notifications: BLOCKED by browser — unblock in site settings'
+        : perm === 'default'
+            ? 'Notifications: OFF — click to grant permission'
+            : on
+                ? 'Notifications: ON — click to mute'
+                : 'Notifications: MUTED — click to unmute';
 }
 
 document.getElementById('agentsNotifyBtn').addEventListener('click', async () => {
@@ -566,11 +573,17 @@ document.getElementById('agentsNotifyBtn').addEventListener('click', async () =>
     }
     if (Notification.permission === 'default') {
         await Notification.requestPermission();
-    } else if (Notification.permission === 'granted') {
-        try {
-            new Notification('claude-web-terminal', { body: 'Test notification — pipeline OK.', tag: 'cwt-test' });
-        } catch (e) {
-            alert('Notification.permission is "granted" but firing failed: ' + e.message);
+        if (Notification.permission === 'granted') localStorage.setItem('cwt.notify', 'on');
+    } else {
+        // Granted — toggle the user-side mute flag.
+        const muted = !_notifyUserEnabled();
+        if (muted) {
+            localStorage.setItem('cwt.notify', 'on');
+            try {
+                new Notification('claude-web-terminal', { body: 'Notifications ON — test toast.', tag: 'cwt-test' });
+            } catch {}
+        } else {
+            localStorage.setItem('cwt.notify', 'off');
         }
     }
     _updateNotifyBtn();
