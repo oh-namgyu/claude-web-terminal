@@ -122,6 +122,46 @@ app.get('/api/cc-sessions', (_req, res) => {
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// SSE channel for live session events. Survives background-tab throttling
+// (the browser doesn't throttle incoming-byte handlers on open EventSource
+// streams), so working→idle transitions reach the client immediately and
+// the page can fire a Notification even when the panel is closed.
+const _sseClients = new Set();
+app.get('/api/cc-events', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write('retry: 2000\n\n');
+    _sseClients.add(res);
+    const ka = setInterval(() => { try { res.write(': keepalive\n\n'); } catch {} }, 25000);
+    req.on('close', () => { _sseClients.delete(res); clearInterval(ka); });
+});
+
+function _sseBroadcast(payload) {
+    const line = `data: ${JSON.stringify(payload)}\n\n`;
+    for (const c of _sseClients) { try { c.write(line); } catch {} }
+}
+
+let _bgStatusPrev = {};
+setInterval(() => {
+    if (_sseClients.size === 0) return;
+    let bg;
+    try { ({ bg = [] } = listSessions()); }
+    catch { return; }
+    const seen = new Set();
+    for (const s of bg) {
+        seen.add(s.id);
+        const prev = _bgStatusPrev[s.id];
+        if (prev === 'working' && s.status === 'idle') {
+            _sseBroadcast({ type: 'idle', id: s.id, name: s.name || s.id.slice(0, 8) });
+        }
+        _bgStatusPrev[s.id] = s.status;
+    }
+    for (const id of Object.keys(_bgStatusPrev)) if (!seen.has(id)) delete _bgStatusPrev[id];
+}, 2000);
+
 app.post('/api/cc-sessions', async (req, res) => {
     const prompt = (req.body && req.body.prompt || '').trim();
     if (!prompt) return res.status(400).json({ error: 'prompt required' });

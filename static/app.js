@@ -147,13 +147,9 @@ window.addEventListener('resize', () => {
 let _pollTimer = null;
 let _lastRenderedCards = [];
 
-function _notificationsActive() {
-    return ('Notification' in window) && Notification.permission === 'granted';
-}
-
 function _ensurePolling() {
     const panel = document.getElementById('agentsPanel');
-    const want = panel.classList.contains('open') || _notificationsActive();
+    const want = panel.classList.contains('open');
     if (want && !_pollTimer) {
         loadCCSessions();
         _pollTimer = setInterval(loadCCSessions, 3000);
@@ -235,16 +231,15 @@ function _notifySessionIdle(s) {
 }
 
 function _checkStatusTransitions(bg) {
-    const seen = new Set();
+    // Kept for debug visibility only — the actual notification is fired
+    // from the SSE handler so background-tab throttling can't drop it.
     const transitions = [];
+    const seen = new Set();
     for (const s of bg) {
         seen.add(s.id);
         const prev = _prevStatus[s.id];
         if (prev !== undefined && prev !== s.status) {
             transitions.push(`${s.id.slice(0, 8)}: ${prev} → ${s.status}`);
-        }
-        if (_statusBaselineDone && prev === 'working' && s.status === 'idle') {
-            _notifySessionIdle(s);
         }
         _prevStatus[s.id] = s.status;
     }
@@ -252,6 +247,21 @@ function _checkStatusTransitions(bg) {
     if (transitions.length) console.debug('[cwt] status transitions:', transitions);
     _statusBaselineDone = true;
 }
+
+// Live event stream from server — survives background-tab throttling.
+let _sse = null;
+function _connectSSE() {
+    if (_sse || typeof EventSource === 'undefined') return;
+    _sse = new EventSource('/api/cc-events');
+    _sse.onmessage = (e) => {
+        try {
+            const d = JSON.parse(e.data);
+            if (d.type === 'idle') _notifySessionIdle({ id: d.id, name: d.name });
+        } catch {}
+    };
+    _sse.onerror = () => { /* EventSource auto-reconnects */ };
+}
+_connectSSE();
 
 function _applyFilters() {
     const q = (document.getElementById('agentsSearchInput').value || '').toLowerCase().trim();
