@@ -46,6 +46,6 @@ All notable changes to claude-web-terminal.
 ### Security
 - WebSocket authentication gate (CSWSH protection) — random 192-bit token bootstraps an httpOnly `SameSite=Strict` cookie.
 - Origin allowlist on REST + WS upgrade (CSRF protection).
-- `?cwd=` query removed from WS API; cwd derived from session metadata only.
+- `?cwd=` query restricted to the resume flow and validated server-side (must be under `/Users/` or `/home/` and exist on disk); ignored for `attach` and rejected otherwise.
 - Inline `onclick` handlers removed in favor of `addEventListener` + `textContent` (XSS surface reduced).
 - node-pty 1.1.0 macOS spawn-helper permission fix bundled (`scripts/fix-pty-perms.js`).
