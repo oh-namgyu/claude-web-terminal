@@ -124,6 +124,16 @@ body {
   font-family: inherit; outline: none;
 }
 .agents-search-bar input:focus { border-color: var(--accent); }
+.time-filter { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+.time-filter-btn {
+  padding: 3px 9px; background: var(--bg); color: var(--muted);
+  border: 1px solid var(--border); border-radius: 3px; cursor: pointer;
+  font-size: 11px; font-family: inherit;
+}
+.time-filter-btn:hover { color: var(--accent); border-color: var(--accent); }
+.time-filter-btn.active {
+  background: var(--accent); color: #0a0a1a; border-color: var(--accent);
+}
 .agents-btn-icon {
   background: transparent; border: none; cursor: pointer; font-size: 14px;
   padding: 2px 6px; color: var(--muted);

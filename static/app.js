@@ -178,14 +178,23 @@ function _sortByPinned(items, metadataMap) {
     });
 }
 
-function _applySessionFilter(query) {
-    const q = query.toLowerCase().trim();
+let _activeDays = 0;
+
+function _applyFilters() {
+    const q = (document.getElementById('agentsSearchInput').value || '').toLowerCase().trim();
+    const cutoff = _activeDays > 0 ? Date.now() - _activeDays * 86400000 : 0;
     _lastRenderedCards.forEach(card => {
-        if (!q) { card.classList.remove('hidden'); return; }
-        const text = card.textContent.toLowerCase();
-        const id = card.dataset.sessionId?.toLowerCase() || '';
-        const match = text.includes(q) || id.includes(q);
-        card.classList.toggle('hidden', !match);
+        let show = true;
+        if (q) {
+            const text = card.textContent.toLowerCase();
+            const id = card.dataset.sessionId?.toLowerCase() || '';
+            show = text.includes(q) || id.includes(q);
+        }
+        if (show && cutoff > 0) {
+            const updated = parseInt(card.dataset.updatedAt || '0', 10);
+            show = updated >= cutoff;
+        }
+        card.classList.toggle('hidden', !show);
     });
 }
 
@@ -218,7 +227,6 @@ async function loadCCSessions() {
         }
         list.replaceChildren();
         _lastRenderedCards = [];
-        document.getElementById('agentsSearchInput').value = '';
 
         if (bg.length === 0 && interactive.length === 0) {
             const empty = document.createElement('div');
@@ -245,6 +253,7 @@ async function loadCCSessions() {
             const isPinned = metadataMap[s.id]?.pinned === true;
             card.className = 'agent-card' + (attachable ? '' : ' interactive') + (isPinned ? ' pinned' : '');
             card.dataset.sessionId = s.id;
+            card.dataset.updatedAt = String(s.updatedAt || 0);
             _lastRenderedCards.push(card);
 
             const displayName = metadataMap[s.id]?.name || s.name;
@@ -319,6 +328,7 @@ async function loadCCSessions() {
             const isPinned = metadataMap[s.id]?.pinned === true;
             card.className = 'agent-card resumable' + (isPinned ? ' pinned' : '');
             card.dataset.sessionId = s.id;
+            card.dataset.updatedAt = String(s.updatedAt || 0);
             _lastRenderedCards.push(card);
 
             const displayName = metadataMap[s.id]?.name || `📌 ${idShort}`;
@@ -368,6 +378,7 @@ async function loadCCSessions() {
             _sortByPinned(resumable, metadataMap).forEach(s => section.appendChild(renderResumableCard(s)));
             list.appendChild(section);
         }
+        _applyFilters();
     } catch (e) {
         list.replaceChildren(
             Object.assign(document.createElement('div'), { className: 'agents-empty', textContent: 'Error: ' + e.message })
@@ -598,8 +609,15 @@ document.getElementById('editSessionName').addEventListener('keydown', (e) => {
     else if (e.key === 'Escape') closeEditModal();
 });
 
-document.getElementById('agentsSearchInput').addEventListener('input', (e) => {
-    _applySessionFilter(e.target.value);
+document.getElementById('agentsSearchInput').addEventListener('input', _applyFilters);
+
+document.querySelectorAll('.time-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.time-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        _activeDays = parseInt(btn.dataset.days, 10) || 0;
+        _applyFilters();
+    });
 });
 
 // 데모 모드일 때는 실제 PTY 안 띄움 — 터미널 영역에 placeholder만 표시 (스크린샷에 zsh 프롬프트 노출 방지)

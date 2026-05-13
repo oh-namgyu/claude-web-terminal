@@ -24,6 +24,14 @@
     </div>
     <div class="agents-search-bar">
       <input type="text" id="agentsSearchInput" placeholder="Search sessions (name, cwd, id)..." />
+      <div class="time-filter" id="timeFilter">
+        <button class="time-filter-btn active" data-days="0">All</button>
+        <button class="time-filter-btn" data-days="2">2d</button>
+        <button class="time-filter-btn" data-days="5">5d</button>
+        <button class="time-filter-btn" data-days="7">7d</button>
+        <button class="time-filter-btn" data-days="14">2w</button>
+        <button class="time-filter-btn" data-days="30">1m</button>
+      </div>
     </div>
     <div class="new-agent-form" id="newAgentForm" hidden>
       <textarea id="newAgentPrompt" rows="2"

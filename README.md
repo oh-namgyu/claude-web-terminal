@@ -77,6 +77,20 @@ By default a new random token is generated on every restart. Set
 `AUTH_TOKEN=<your-value>` in `.env` if you want the bootstrap URL to stay
 the same across restarts.
 
+## CLI helper: `cc-resume`
+
+`claude --resume <id>` only finds sessions whose original cwd matches
+your current shell. If you can't remember where a session was created,
+use the bundled helper — it locates the transcript, reads the original
+cwd, and `cd`s there before resuming:
+
+```bash
+ln -s "$PWD/bin/cc-resume" /usr/local/bin/cc-resume   # or add bin/ to PATH
+
+cc-resume <sessionId>     # full id
+cc-resume 71fc583c        # prefix is enough if unambiguous
+```
+
 ## Requirements
 
 - Node.js 18+
