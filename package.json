@@ -1,0 +1,28 @@
+{
+  "name": "claude-web-terminal",
+  "version": "0.1.0",
+  "description": "A minimal web terminal for Claude Code with Agent View — list, create, attach and stop background sessions from your browser.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "postinstall": "node scripts/fix-pty-perms.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "claude-ai",
+    "terminal",
+    "web-terminal",
+    "xterm",
+    "agent-view"
+  ]
+}

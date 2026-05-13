@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>claude-web-terminal</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css"
+      integrity="sha384-LJcOxlx9IMbNXDqJ2axpfEQKkAYbFjJfhXexLfiRJhjDU81mzgkiQq8rkV0j6dVh"
+      crossorigin="anonymous">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <button class="sidebar-btn" id="agentsBtn" title="Claude Agents">🤖</button>
+  </aside>
+
+  <div class="agents-panel" id="agentsPanel">
+    <div class="agents-panel-header">
+      <span>Claude Code Sessions</span>
+      <div class="agents-header-actions">
+        <button class="agents-btn-icon" id="agentsNewBtn" title="New background session">➕</button>
+        <button class="agents-btn-icon" id="agentsRefreshBtn" title="Refresh">🔄</button>
+      </div>
+    </div>
+    <div class="new-agent-form" id="newAgentForm" hidden>
+      <textarea id="newAgentPrompt" rows="2"
+                placeholder="Initial prompt for the new background session."></textarea>
+      <div class="new-agent-actions">
+        <button class="btn-primary" id="newAgentSubmitBtn">Create</button>
+        <button class="btn-secondary" id="newAgentCancelBtn">Cancel</button>
+      </div>
+    </div>
+    <div class="agents-list" id="agentsList">
+      <div class="agents-empty">Loading…</div>
+    </div>
+  </div>
+
+  <main class="main">
+    <div class="tab-bar" id="tabBar"></div>
+    <div class="terminal-wrap">
+      <div id="terminal"></div>
+    </div>
+    <div class="ime-bar">
+      <textarea id="imeInput" rows="1"
+                placeholder="IME-friendly input. Enter sends. Starts with / @ # → live mode."
+                autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+      <span class="ime-mode" id="imeMode">buffered</span>
+      <button class="btn-primary" id="imeSend">Send</button>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"
+        integrity="sha384-/nfmYPUzWMS6v2atn8hbljz7NE0EI1iGx34lJaNzyVjWGDzMv+ciUZUeJpKA3Glc"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"
+        integrity="sha384-AQLWHRKAgdTxkolJcLOELg4E9rE89CPE2xMy3tIRFn08NcGKPTsELdvKomqji+DL"
+        crossorigin="anonymous"></script>
+<script src="app.js"></script>
+</body>
+</html>
