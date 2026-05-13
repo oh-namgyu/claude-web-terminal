@@ -158,15 +158,19 @@ body {
 }
 .agent-card.interactive { opacity: 0.85; border-style: dashed; }
 .agent-card.pinned { border-color: var(--accent); border-width: 2px; padding: 7px 9px; }
+.agent-card.hidden { display: none; }
 .agent-card-name {
   color: var(--text); font-size: 13px; font-weight: 500; line-height: 1.3;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.agent-card-name-edit {
-  width: 100%; padding: 4px 6px; background: var(--bg); color: var(--text);
-  border: 1px solid var(--accent); border-radius: 3px; font-size: 13px;
-  font-family: inherit; outline: none;
+.agent-card-name-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 4px;
 }
+.agent-card-edit-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; padding: 0 4px; color: var(--muted);
+}
+.agent-card-edit-btn:hover { color: var(--accent); }
 .agent-card-last {
   color: #b8c0d0; font-size: 11px; line-height: 1.35; margin-top: 4px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;

@@ -143,17 +143,49 @@ function _fmtTokens(t) {
     return (total / 1000000).toFixed(1) + 'M';
 }
 
+function _createEditButton(sessionId, displayName) {
+    const btn = document.createElement('button');
+    btn.className = 'agent-card-edit-btn';
+    btn.textContent = '✏️';
+    btn.addEventListener('click', (e) => { e.stopPropagation(); openEditModal(sessionId, displayName); });
+    return btn;
+}
+
+function _createPinButton(sessionId, isPinned) {
+    const btn = document.createElement('button');
+    btn.textContent = isPinned ? '⭐' : '☆';
+    btn.title = isPinned ? 'Unpin session' : 'Pin session';
+    btn.addEventListener('click', (e) => { e.stopPropagation(); togglePinSession(sessionId, !isPinned); });
+    return btn;
+}
+
+function _createNameRow(displayText, sessionId, displayName) {
+    const nameEl = document.createElement('div');
+    nameEl.className = 'agent-card-name';
+    nameEl.textContent = displayText;
+    const row = document.createElement('div');
+    row.className = 'agent-card-name-row';
+    row.append(nameEl, _createEditButton(sessionId, displayName));
+    return row;
+}
+
+function _sortByPinned(items, metadataMap) {
+    return [...items].sort((a, b) => {
+        const aPinned = metadataMap[a.id]?.pinned === true ? 1 : 0;
+        const bPinned = metadataMap[b.id]?.pinned === true ? 1 : 0;
+        if (aPinned !== bPinned) return bPinned - aPinned;
+        return b.updatedAt - a.updatedAt;
+    });
+}
+
 function _applySessionFilter(query) {
     const q = query.toLowerCase().trim();
-    if (!q) {
-        _lastRenderedCards.forEach(card => card.style.display = '');
-        return;
-    }
     _lastRenderedCards.forEach(card => {
+        if (!q) { card.classList.remove('hidden'); return; }
         const text = card.textContent.toLowerCase();
         const id = card.dataset.sessionId?.toLowerCase() || '';
         const match = text.includes(q) || id.includes(q);
-        card.style.display = match ? '' : 'none';
+        card.classList.toggle('hidden', !match);
     });
 }
 
@@ -215,29 +247,8 @@ async function loadCCSessions() {
             card.dataset.sessionId = s.id;
             _lastRenderedCards.push(card);
 
-            const nameEl = document.createElement('div');
-            nameEl.className = 'agent-card-name';
-            const customName = metadataMap[s.id]?.name;
-            const displayName = customName || s.name;
-            nameEl.textContent = `${status} ${displayName}`;
-            const editBtn = document.createElement('button');
-            editBtn.textContent = '✏️';
-            editBtn.style.background = 'none';
-            editBtn.style.border = 'none';
-            editBtn.style.cursor = 'pointer';
-            editBtn.style.fontSize = '12px';
-            editBtn.style.padding = '0 4px';
-            editBtn.style.color = 'var(--muted)';
-            editBtn.addEventListener('click', () => openEditModal(s.id, displayName));
-            editBtn.addEventListener('mouseenter', () => editBtn.style.color = 'var(--accent)');
-            editBtn.addEventListener('mouseleave', () => editBtn.style.color = 'var(--muted)');
-            const nameContainer = document.createElement('div');
-            nameContainer.style.display = 'flex';
-            nameContainer.style.justifyContent = 'space-between';
-            nameContainer.style.alignItems = 'center';
-            nameContainer.style.gap = '4px';
-            nameContainer.append(nameEl, editBtn);
-            card.appendChild(nameContainer);
+            const displayName = metadataMap[s.id]?.name || s.name;
+            card.appendChild(_createNameRow(`${status} ${displayName}`, s.id, displayName));
 
             if (s.lastAssistant) {
                 const last = document.createElement('div');
@@ -269,11 +280,6 @@ async function loadCCSessions() {
             if (attachable) {
                 const actions = document.createElement('div');
                 actions.className = 'agent-card-actions';
-                const pinBtn = document.createElement('button');
-                const isPinned = metadataMap[s.id]?.pinned === true;
-                pinBtn.textContent = isPinned ? '⭐' : '☆';
-                pinBtn.title = isPinned ? 'Unpin session' : 'Pin session';
-                pinBtn.addEventListener('click', () => togglePinSession(s.id, !isPinned));
                 const newTabBtn = document.createElement('button');
                 newTabBtn.textContent = '➕ new tab';
                 newTabBtn.addEventListener('click', () => openSessionInNewTab(s.id));
@@ -285,7 +291,7 @@ async function loadCCSessions() {
                 stopBtn.title = 'Stop session';
                 stopBtn.textContent = '🗑';
                 stopBtn.addEventListener('click', () => stopSession(s.id, s.name));
-                actions.append(pinBtn, newTabBtn, curBtn, stopBtn);
+                actions.append(_createPinButton(s.id, isPinned), newTabBtn, curBtn, stopBtn);
                 card.appendChild(actions);
             } else {
                 const note = document.createElement('div');
@@ -303,13 +309,7 @@ async function loadCCSessions() {
             t.className = 'agents-section-title';
             t.textContent = title;
             section.appendChild(t);
-            const sorted = [...items].sort((a, b) => {
-                const aPinned = metadataMap[a.id]?.pinned === true ? 1 : 0;
-                const bPinned = metadataMap[b.id]?.pinned === true ? 1 : 0;
-                if (aPinned !== bPinned) return bPinned - aPinned;
-                return b.updatedAt - a.updatedAt;
-            });
-            sorted.forEach(s => section.appendChild(renderCard(s, attachable)));
+            _sortByPinned(items, metadataMap).forEach(s => section.appendChild(renderCard(s, attachable)));
             list.appendChild(section);
         };
         const renderResumableCard = (s) => {
@@ -321,30 +321,8 @@ async function loadCCSessions() {
             card.dataset.sessionId = s.id;
             _lastRenderedCards.push(card);
 
-            const nameEl = document.createElement('div');
-            nameEl.className = 'agent-card-name';
-            const customName = metadataMap[s.id]?.name;
-            const displayName = customName || `📌 ${idShort}`;
-            nameEl.textContent = displayName;
-            const editBtn = document.createElement('button');
-            editBtn.textContent = '✏️';
-            editBtn.style.background = 'none';
-            editBtn.style.border = 'none';
-            editBtn.style.cursor = 'pointer';
-            editBtn.style.fontSize = '12px';
-            editBtn.style.padding = '0 4px';
-            editBtn.style.color = 'var(--muted)';
-            editBtn.addEventListener('click', () => openEditModal(s.id, displayName));
-            editBtn.addEventListener('mouseenter', () => editBtn.style.color = 'var(--accent)');
-            editBtn.addEventListener('mouseleave', () => editBtn.style.color = 'var(--muted)');
-            const nameContainer = document.createElement('div');
-            nameContainer.style.display = 'flex';
-            nameContainer.style.justifyContent = 'space-between';
-            nameContainer.style.alignItems = 'center';
-            nameContainer.style.gap = '4px';
-            nameContainer.append(nameEl, editBtn);
-            card.appendChild(nameContainer);
-            card.style.cursor = 'auto';
+            const displayName = metadataMap[s.id]?.name || `📌 ${idShort}`;
+            card.appendChild(_createNameRow(displayName, s.id, displayName));
 
             if (s.lastAssistant) {
                 const last = document.createElement('div');
@@ -367,14 +345,10 @@ async function loadCCSessions() {
 
             const actions = document.createElement('div');
             actions.className = 'agent-card-actions';
-            const pinBtn = document.createElement('button');
-            pinBtn.textContent = isPinned ? '⭐' : '☆';
-            pinBtn.title = isPinned ? 'Unpin session' : 'Pin session';
-            pinBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePinSession(s.id, !isPinned); });
             const openBtn = document.createElement('button');
             openBtn.textContent = '↪️ resume';
             openBtn.addEventListener('click', (e) => { e.stopPropagation(); addTab({ resumeId: s.id, resumeCwd: s.cwd }); });
-            actions.append(pinBtn, openBtn);
+            actions.append(_createPinButton(s.id, isPinned), openBtn);
             card.appendChild(actions);
 
             card.addEventListener('click', () => {
@@ -391,13 +365,7 @@ async function loadCCSessions() {
             t.className = 'agents-section-title';
             t.textContent = '📌 Past Sessions (resumable)';
             section.appendChild(t);
-            const sorted = [...resumable].sort((a, b) => {
-                const aPinned = metadataMap[a.id]?.pinned === true ? 1 : 0;
-                const bPinned = metadataMap[b.id]?.pinned === true ? 1 : 0;
-                if (aPinned !== bPinned) return bPinned - aPinned;
-                return b.updatedAt - a.updatedAt;
-            });
-            sorted.forEach(s => section.appendChild(renderResumableCard(s)));
+            _sortByPinned(resumable, metadataMap).forEach(s => section.appendChild(renderResumableCard(s)));
             list.appendChild(section);
         }
     } catch (e) {
