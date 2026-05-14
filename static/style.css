@@ -149,6 +149,13 @@ body {
 }
 .btn-primary:hover { filter: brightness(1.1); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-bg {
+  background: transparent; color: var(--ok); border: 1px solid var(--ok);
+  padding: 6px 12px; border-radius: 4px; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+}
+.btn-bg:hover { background: rgba(62, 207, 142, 0.12); }
+.btn-bg:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-secondary {
   background: transparent; color: var(--muted);
   border: 1px solid var(--border); padding: 6px 14px;

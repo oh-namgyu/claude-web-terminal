@@ -754,6 +754,36 @@ imeSend.addEventListener('click', () => {
     imeInput.focus();
 });
 
+// bgSend — start a new background session with the current prompt.
+// Stays in the foreground tab; user can open the Agent panel to see it.
+const imeBgSend = document.getElementById('imeBgSend');
+imeBgSend.addEventListener('click', async () => {
+    const prompt = imeInput.value.trim();
+    if (!prompt) { imeInput.focus(); return; }
+    imeBgSend.disabled = true;
+    const orig = imeBgSend.textContent;
+    imeBgSend.textContent = '…';
+    try {
+        const r = await fetch('/api/cc-sessions', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'failed');
+        imeInput.value = ''; _prevImeValue = ''; updateImeMode();
+        const id = (data.id || '').slice(0, 8);
+        if (('Notification' in window) && Notification.permission === 'granted' && _notifyUserEnabled()) {
+            new Notification('Background session started', { body: id ? `id ${id}` : prompt.slice(0, 80), tag: `cwt-bgstart-${id || Date.now()}` });
+        }
+    } catch (e) {
+        alert('bgSend failed: ' + e.message);
+    } finally {
+        imeBgSend.disabled = false;
+        imeBgSend.textContent = orig;
+        imeInput.focus();
+    }
+});
+
 updateImeMode();
 
 // ===== Session metadata edit modal =====
