@@ -115,6 +115,20 @@ cc-resume 71fc583c        # prefix is enough if unambiguous
 - Node.js 18+
 - [Claude Code CLI](https://docs.claude.com/en/docs/claude-code/overview) on `PATH`, authenticated (Pro/Max login or `ANTHROPIC_API_KEY`).
 
+## Testing
+
+```bash
+npm run test:e2e          # Playwright Chromium — 6 scenarios, ~1s (server auto-spawn)
+npm run test:e2e:headed   # show browser
+```
+
+`e2e/smoke.spec.ts` verifies:
+- Bootstrap: 401 without token / `?t=<token>` sets `cwt_auth` httpOnly cookie / wrong token blocked
+- Static UI (cookie-gated): `/` returns index.html, `/app.js` and `/style.css` reachable
+- API origin gate: cookie + foreign Origin → 403 (CSWSH / CSRF block)
+
+First run: `npx playwright install chromium` (~92MB). Token fixed via `E2E_AUTH_TOKEN` env (default `e2e-test-token-cwt-12345`).
+
 ## How it works
 
 | What | Where it comes from | Status |
