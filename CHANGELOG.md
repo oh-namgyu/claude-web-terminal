@@ -37,7 +37,7 @@ All notable changes to claude-web-terminal.
 ### Added
 - **Time filter chips** (All / 2d / 5d / 7d / 2w / 1m) in the Agent panel. Combines with the text search filter.
 - **`bin/cc-resume` CLI helper** — resumes a Claude Code session from any shell by resolving the original cwd.
-- 3-tier cwd resolution: session metadata → `"cwd"` in transcript → slug backtracking. Handles hyphenated usernames (`redacted-user`) and ai-title-only metafiles.
+- 3-tier cwd resolution: session metadata → `"cwd"` in transcript → slug backtracking. Handles hyphenated usernames (e.g. `alice-doe`) and ai-title-only metafiles.
 
 ## v0.3.0 — 2026-05-13
 
