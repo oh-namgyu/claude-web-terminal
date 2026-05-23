@@ -54,6 +54,17 @@ function originAllowed(req) {
     if (!origin) return true;
     return ALLOWED_ORIGINS.has(origin);
 }
+
+// State-changing requests must carry an Origin header. Browsers always do;
+// curl / native apps usually don't — so a missing Origin on POST/PUT/PATCH/
+// DELETE is a sign of a non-browser caller piggybacking on the auth cookie.
+const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+function originRequiredForMethod(req) {
+    if (!STATE_CHANGING.has(req.method)) return true;
+    const origin = req.headers.origin;
+    if (!origin) return false;
+    return ALLOWED_ORIGINS.has(origin);
+}
 const CLAUDE_BIN = (() => {
     if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
     try { return which('which claude', { encoding: 'utf-8' }).trim() || 'claude'; }
@@ -105,8 +116,15 @@ app.use((req, res, next) => {
     );
 });
 
-// API requests: extra Origin check on top of the auth cookie.
+// API requests: Origin check on top of the auth cookie.
+// - GET/HEAD: reject if Origin is *present and not whitelisted* (browser CSRF).
+// - POST/PUT/PATCH/DELETE: Origin must be present AND whitelisted. Reject a
+//   missing Origin too, since a non-browser caller (curl/native app) on the
+//   same machine could otherwise piggyback on the auth cookie.
 app.use('/api/', (req, res, next) => {
+    if (!originRequiredForMethod(req)) {
+        return res.status(403).json({ error: 'origin header required for state-changing requests' });
+    }
     if (!originAllowed(req)) return res.status(403).json({ error: 'origin not allowed' });
     next();
 });
@@ -227,11 +245,34 @@ app.get('/api/cc-resume-sessions', (_req, res) => {
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Allowlist of writable metadata fields. Anything else in the body is
+// silently dropped — keeps a hostile / buggy caller from polluting the
+// shared session-metadata.json file.
+const METADATA_FIELDS = {
+    name: (v) => typeof v === 'string' && v.length <= 200,
+    pinned: (v) => typeof v === 'boolean',
+};
+
+function _sanitizeMetadata(body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+    const clean = {};
+    for (const [k, validate] of Object.entries(METADATA_FIELDS)) {
+        if (!(k in body)) continue;
+        if (!validate(body[k])) return { _error: `invalid value for ${k}` };
+        clean[k] = body[k];
+    }
+    return clean;
+}
+
 app.post('/api/cc-sessions/:id/metadata', (req, res) => {
     const id = req.params.id;
     if (!/^[a-f0-9-]{36}$|^[a-f0-9]{6,}$/i.test(id)) return res.status(400).json({ error: 'invalid id' });
+    const clean = _sanitizeMetadata(req.body);
+    if (!clean) return res.status(400).json({ error: 'body must be an object' });
+    if (clean._error) return res.status(400).json({ error: clean._error });
+    if (Object.keys(clean).length === 0) return res.status(400).json({ error: 'no allowed fields in body' });
     try {
-        const meta = updateSessionMetadata(id, req.body);
+        const meta = updateSessionMetadata(id, clean);
         res.json({ ok: true, metadata: meta });
     } catch (e) {
         res.status(500).json({ error: e.message });

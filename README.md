@@ -22,10 +22,20 @@ it over HTTP/WebSocket, so it ships with two layers of access control,
   validated on every API call and WebSocket upgrade, so a malicious page
   in your browser cannot cross-connect to the local server (CSWSH/CSRF
   protection).
+- **State-changing requests require an `Origin` header.** Browsers
+  always send one; `curl` and native apps usually don't — so a missing
+  `Origin` on `POST`/`PUT`/`PATCH`/`DELETE` is treated as a non-browser
+  caller piggybacking on the auth cookie and rejected with 403.
+- **Per-field metadata schema.** Session metadata writes only accept
+  `name` (string ≤ 200 chars) and `pinned` (boolean). Unknown fields
+  are rejected — a buggy or hostile caller can't pollute
+  `~/.claude/session-metadata.json`.
 
 Do not change `HOST` to `0.0.0.0` on a shared network — even with the
-token, the API surface (cwds, session names, last assistant text) is not
-designed for multi-tenant exposure.
+token, the API surface (cwds, session names, last assistant text, the
+full transcript preview returned by `/api/cc-resume-sessions`) is **not**
+designed for multi-tenant exposure. Treat anyone who has the cookie as
+having read access to every Claude conversation on this machine.
 
 ## Why
 
