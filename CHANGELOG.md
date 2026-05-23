@@ -4,6 +4,10 @@ All notable changes to claude-web-terminal.
 
 ## Unreleased — 2026-05-23
 
+### Observability
+- **Structured logging** (`lib/log.js`) with `LOG_LEVEL` (debug/info/warn/error) and `LOG_FORMAT` (text/json). All interesting events — boot, auth.*, origin.*, rate.*, session.*, ws.* — go through the logger so you can pipe stdout into Loki / jq when deploying inside a container.
+- **`GET /api/metrics`** returns an auth-gated JSON snapshot: `uptime_seconds`, `boot_time_iso`, `counters` (requests_total, auth_failures_total, origin_blocked_total, rate_limited_total, sessions_created_total, sessions_stopped_total, ws_connections_total, ws_active), `sessions_active` (bg + interactive).
+
 ### Security
 - **CSRF hardening on state-changing requests.** `POST`/`PUT`/`PATCH`/`DELETE` to any `/api/*` path now require an `Origin` header. Browsers always send one; `curl` / native apps usually don't — so a missing `Origin` on a mutating method is treated as a non-browser caller piggybacking on the auth cookie and rejected with 403.
 - **Per-field metadata schema.** `POST /api/cc-sessions/:id/metadata` validates body against an allowlist (`name: string ≤ 200 chars`, `pinned: boolean`). Unknown fields are rejected with 400, so a buggy or hostile caller can't pollute `~/.claude/session-metadata.json`.

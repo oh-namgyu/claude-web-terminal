@@ -28,6 +28,16 @@ In-scope concerns I want to hear about:
 - Any case where a non-authenticated request can change state.
 - Supply-chain risk in the dependency tree (Dependabot is on, but please flag a confirmed exploit).
 
+## Multi-tenant deployment (out of scope, design note)
+
+If you ever need to share a `claude-web-terminal` server across users — not the current design — the missing piece is per-session locking, since today anyone holding the auth cookie can attach to every Claude conversation on the machine. A future implementation would probably:
+
+- add `pin_hash` (server-side hash) to the per-session metadata schema (`POST /api/cc-sessions/:id/lock { pin }`),
+- require `?pin=<value>` matching the stored hash on the WebSocket attach/resume URL,
+- prompt for the PIN in the dashboard the first time a user attaches.
+
+I'm deliberately not building this until there's a real scenario — the current single-user loopback model keeps the surface small.
+
 ## Supported versions
 
 Latest `main` only. Security fixes ship there first and are tagged in [CHANGELOG.md](CHANGELOG.md).
