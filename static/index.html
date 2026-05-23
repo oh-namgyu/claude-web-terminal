@@ -61,9 +61,13 @@
       <div class="busy-tooltip" id="busyTooltip" hidden></div>
     </div>
     <div class="ime-bar">
-      <div class="slash-palette hidden" id="slashPalette" role="listbox" aria-label="Slash command palette"></div>
+      <div class="slash-palette hidden" id="slashPalette" role="listbox" aria-label="Command palette"></div>
+      <details class="cwd-picker" id="cwdPicker" title="Working directory for new tabs">
+        <summary><span class="cwd-icon">📁</span><span class="cwd-label" id="cwdLabel">(default)</span><span class="cwd-arrow">▾</span></summary>
+        <div class="cwd-menu" id="cwdMenu" role="listbox" aria-label="Working directory"></div>
+      </details>
       <textarea id="imeInput" rows="1"
-                placeholder="IME-friendly input. Enter sends. Type / to see commands."
+                placeholder="IME-friendly input. Enter sends. Type / for commands, @ for files."
                 autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
       <span class="ime-mode" id="imeMode">buffered</span>
       <div class="model-toggle" title="Switch model in the active tab">

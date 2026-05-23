@@ -32,10 +32,13 @@ function renderTabs() {
 }
 
 function addTab(opts) {
+    const newCwd = (opts && opts.newCwd) || (typeof currentCwd !== 'undefined' ? currentCwd : null);
     const tab = { id: nextTabId++, term: null, ws: null, fitAddon: null,
                    attachId: (opts && opts.attachId) || null,
                    resumeId: (opts && opts.resumeId) || null,
-                   resumeCwd: (opts && opts.resumeCwd) || null };
+                   resumeCwd: (opts && opts.resumeCwd) || null,
+                   newCwd,
+                   cwd: (opts && opts.resumeCwd) || newCwd || null };
     tabs.push(tab);
     activeIdx = tabs.length - 1;
     renderTabs();
@@ -85,6 +88,7 @@ function _wsQueryFor(tab) {
         if (tab.resumeCwd) q += `&cwd=${encodeURIComponent(tab.resumeCwd)}`;
         return q;
     }
+    if (tab.newCwd) return `?cwd=${encodeURIComponent(tab.newCwd)}`;
     return '';
 }
 
@@ -742,16 +746,19 @@ imeInput.addEventListener('keydown', (e) => {
     }
 });
 
-// ===== Slash command floating palette =====
-// Triggered when imeInput starts with '/'. Fetches once per minute from
-// /api/slash-commands (= ~/.claude/commands/*.md frontmatter + builtins).
-// Body text is buffered (see input handler above) so the CLI itself never
-// sees per-keystroke; this palette gives back the autocomplete preview.
+// ===== Command palette — slash (/) and at (@) =====
+// Triggered when imeInput starts with '/' or '@'. Body text is buffered so the
+// CLI never sees per-keystroke; this palette gives back the live preview that
+// the old passthrough mode used to provide.
+//   '/' → /api/slash-commands (builtins + ~/.claude/commands/*.md)
+//   '@' → /api/files?cwd=<currentCwd>&q=<query>
 const slashPalette = document.getElementById('slashPalette');
 let _slashCommandsCache = null;
 let _slashCommandsFetched = 0;
 let _paletteItems = [];
 let _paletteIdx = -1;
+let _paletteMode = null;
+let _atFetchAbort = null;
 
 async function loadSlashCommands() {
     if (_slashCommandsCache && Date.now() - _slashCommandsFetched < 60000) return _slashCommandsCache;
@@ -765,12 +772,26 @@ async function loadSlashCommands() {
     } catch { return null; }
 }
 
+async function loadFiles(cwd, q) {
+    if (!cwd) return null;
+    if (_atFetchAbort) { try { _atFetchAbort.abort(); } catch {} }
+    _atFetchAbort = new AbortController();
+    try {
+        const url = `/api/files?cwd=${encodeURIComponent(cwd)}&q=${encodeURIComponent(q)}`;
+        const r = await fetch(url, { credentials: 'include', signal: _atFetchAbort.signal });
+        if (!r.ok) return null;
+        const j = await r.json();
+        return j.files || [];
+    } catch { return null; }
+}
+
 function slashPaletteOpen() { return !slashPalette.classList.contains('hidden'); }
 
 function hideSlashPalette() {
     slashPalette.classList.add('hidden');
     _paletteItems = [];
     _paletteIdx = -1;
+    _paletteMode = null;
 }
 
 function escHtml(s) {
@@ -779,19 +800,45 @@ function escHtml(s) {
 
 async function updateSlashPalette() {
     const v = imeInput.value;
-    if (!v.startsWith('/')) { hideSlashPalette(); return; }
+    if (v.startsWith('/')) await renderSlashMode(v);
+    else if (v.startsWith('@')) await renderAtMode(v);
+    else hideSlashPalette();
+}
+
+async function renderSlashMode(v) {
+    _paletteMode = 'slash';
     const cmds = await loadSlashCommands();
     if (!cmds) { hideSlashPalette(); return; }
     const firstToken = v.split(/\s+/)[0].slice(1).toLowerCase();
     const filtered = cmds.filter(c => c.name.slice(1).toLowerCase().startsWith(firstToken));
     if (!filtered.length) { hideSlashPalette(); return; }
-    _paletteItems = filtered.slice(0, 20);
+    _paletteItems = filtered.slice(0, 20).map(c => ({
+        token: c.name, label: c.name, sub: c.description || '', tag: c.source,
+    }));
     _paletteIdx = 0;
-    slashPalette.innerHTML = _paletteItems.map((c, i) => `
-        <div class="slash-item${i === 0 ? ' sel' : ''}" data-i="${i}" role="option">
-            <span class="slash-name">${escHtml(c.name)}</span>
-            <span class="slash-desc">${escHtml(c.description || '')}</span>
-            <span class="slash-source">${escHtml(c.source)}</span>
+    renderPaletteDOM();
+}
+
+async function renderAtMode(v) {
+    _paletteMode = 'at';
+    const cwd = currentCwd || (cwdOptions[0] && cwdOptions[0].path) || '';
+    if (!cwd) { hideSlashPalette(); return; }
+    const q = v.split(/\s+/)[0].slice(1);
+    const files = await loadFiles(cwd, q);
+    if (!files || !files.length) { hideSlashPalette(); return; }
+    _paletteItems = files.slice(0, 20).map(f => ({
+        token: '@' + f.path, label: '@' + f.path, sub: '', tag: 'file',
+    }));
+    _paletteIdx = 0;
+    renderPaletteDOM();
+}
+
+function renderPaletteDOM() {
+    slashPalette.innerHTML = _paletteItems.map((it, i) => `
+        <div class="slash-item${i === _paletteIdx ? ' sel' : ''}" data-i="${i}" role="option">
+            <span class="slash-name">${escHtml(it.label)}</span>
+            <span class="slash-desc">${escHtml(it.sub)}</span>
+            <span class="slash-source">${escHtml(it.tag)}</span>
         </div>
     `).join('');
     slashPalette.classList.remove('hidden');
@@ -807,9 +854,9 @@ function movePaletteSel(delta) {
 
 function pickPaletteSel() {
     if (_paletteIdx < 0 || _paletteIdx >= _paletteItems.length) { hideSlashPalette(); return; }
-    const cmd = _paletteItems[_paletteIdx];
+    const it = _paletteItems[_paletteIdx];
     const rest = imeInput.value.split(/\s+/).slice(1).join(' ');
-    imeInput.value = rest ? `${cmd.name} ${rest}` : `${cmd.name} `;
+    imeInput.value = rest ? `${it.token} ${rest}` : `${it.token} `;
     _prevImeValue = imeInput.value;
     updateImeMode();
     hideSlashPalette();
@@ -831,7 +878,57 @@ document.addEventListener('mousedown', (e) => {
     hideSlashPalette();
 });
 
-imeInput.addEventListener('focus', () => { loadSlashCommands(); }, { once: true });
+imeInput.addEventListener('focus', () => { loadSlashCommands(); loadCwdOptions(); }, { once: true });
+
+// ===== cwd picker — toolbar dropdown for working directory =====
+let cwdOptions = [];
+let currentCwd = null;
+const cwdPicker = document.getElementById('cwdPicker');
+const cwdMenu = document.getElementById('cwdMenu');
+const cwdLabel = document.getElementById('cwdLabel');
+
+async function loadCwdOptions() {
+    if (cwdOptions.length) return cwdOptions;
+    try {
+        const r = await fetch('/api/cwd-options', { credentials: 'include' });
+        if (!r.ok) return [];
+        const j = await r.json();
+        cwdOptions = j.options || [];
+        if (!currentCwd && j.default) {
+            const exact = cwdOptions.find(o => o.path === j.default);
+            currentCwd = (exact && exact.path) || (cwdOptions[0] && cwdOptions[0].path) || null;
+        }
+        renderCwdMenu();
+        updateCwdLabel();
+        return cwdOptions;
+    } catch { return []; }
+}
+
+function updateCwdLabel() {
+    if (!currentCwd) { cwdLabel.textContent = '(default)'; return; }
+    const opt = cwdOptions.find(o => o.path === currentCwd);
+    cwdLabel.textContent = opt ? opt.label : currentCwd.replace(/^.*\//, '');
+    cwdLabel.title = currentCwd;
+}
+
+function renderCwdMenu() {
+    cwdMenu.innerHTML = cwdOptions.map(o => `
+        <div class="cwd-option${o.isRoot ? ' root' : ''}${o.path === currentCwd ? ' cur' : ''}" data-path="${escHtml(o.path)}" role="option">
+            ${escHtml(o.label)}
+        </div>
+    `).join('');
+}
+
+cwdMenu.addEventListener('click', (e) => {
+    const el = e.target.closest('.cwd-option');
+    if (!el) return;
+    currentCwd = el.dataset.path;
+    cwdPicker.removeAttribute('open');
+    renderCwdMenu();
+    updateCwdLabel();
+    addTab({ newCwd: currentCwd });
+    imeInput.focus();
+});
 
 document.querySelectorAll('.model-btn').forEach(btn => {
     btn.addEventListener('click', () => {

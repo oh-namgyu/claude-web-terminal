@@ -126,6 +126,59 @@ body {
 .slash-item.sel .slash-desc,
 .slash-item.sel .slash-source { opacity: 0.75; }
 
+/* cwd picker — working-directory dropdown in the ime-bar */
+.cwd-picker {
+  position: relative;
+  align-self: center;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cwd-picker > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  background: var(--bg, #0a0a1a);
+  border: 1px solid var(--border, #303844);
+  border-radius: 4px;
+  color: var(--text, #e0e0e0);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cwd-picker > summary::-webkit-details-marker { display: none; }
+.cwd-picker > summary:hover { border-color: var(--accent, #45c4b0); }
+.cwd-picker .cwd-label { overflow: hidden; text-overflow: ellipsis; }
+.cwd-picker .cwd-arrow { opacity: 0.6; }
+.cwd-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  right: 0;
+  min-width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--panel, #1d222b);
+  border: 1px solid var(--border, #303844);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  z-index: 1001;
+}
+.cwd-option {
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cwd-option:hover { background: rgba(255, 255, 255, 0.04); }
+.cwd-option.root { font-weight: 600; opacity: 0.85; }
+.cwd-option.cur { background: var(--accent, #45c4b0); color: #111; }
+
 .busy-bar {
   position: relative;
   padding: 4px 8px;

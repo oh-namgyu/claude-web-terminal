@@ -266,6 +266,89 @@ app.get('/api/slash-commands', (_req, res) => {
     res.json({ commands: listSlashCommands() });
 });
 
+// cwd dropdown options — first-level children of well-known root dirs
+// ($HOME by default, override with CWD_ROOTS=comma,separated,paths). devs/ and
+// docs/ get an extra level since each child is usually a project.
+const CWD_ROOTS = (process.env.CWD_ROOTS || os.homedir())
+    .split(',')
+    .map(p => path.resolve(p.trim().replace(/^~(?=$|\/)/, os.homedir())))
+    .filter(Boolean);
+const _CWD_EXTRA_DEPTH = new Set(['devs', 'docs', 'repos', 'projects', 'code']);
+let _cwdOptionsCache = null;
+let _cwdOptionsAt = 0;
+function listCwdOptions() {
+    if (_cwdOptionsCache && Date.now() - _cwdOptionsAt < 60000) return _cwdOptionsCache;
+    const out = [];
+    for (const root of CWD_ROOTS) {
+        if (!fs.existsSync(root)) continue;
+        out.push({ path: root, label: root.replace(os.homedir(), '~'), isRoot: true });
+        try {
+            const children = fs.readdirSync(root, { withFileTypes: true });
+            for (const d of children) {
+                if (!d.isDirectory()) continue;
+                if (d.name.startsWith('.') || d.name === 'node_modules') continue;
+                const p = path.join(root, d.name);
+                out.push({ path: p, label: p.replace(os.homedir(), '~'), isRoot: false });
+                if (_CWD_EXTRA_DEPTH.has(d.name)) {
+                    try {
+                        const grand = fs.readdirSync(p, { withFileTypes: true });
+                        for (const g of grand) {
+                            if (!g.isDirectory()) continue;
+                            if (g.name.startsWith('.') || g.name === 'node_modules') continue;
+                            const gp = path.join(p, g.name);
+                            out.push({ path: gp, label: gp.replace(os.homedir(), '~'), isRoot: false });
+                        }
+                    } catch {}
+                }
+            }
+        } catch {}
+    }
+    _cwdOptionsCache = out;
+    _cwdOptionsAt = Date.now();
+    return _cwdOptionsCache;
+}
+app.get('/api/cwd-options', (_req, res) => {
+    res.json({ options: listCwdOptions(), default: DEFAULT_CWD });
+});
+
+// File listing for `@` palette autocomplete — flat list of files under cwd.
+// gitignore-aware via simple skip-set. Capped at 1000 entries.
+app.get('/api/files', (req, res) => {
+    const reqCwd = String(req.query.cwd || '');
+    const q = String(req.query.q || '').toLowerCase();
+    const cwd = safeResumeCwd(reqCwd);
+    if (!cwd) return res.status(400).json({ error: 'cwd not allowed' });
+    const SKIP_DIRS = new Set(['node_modules', '.venv', 'venv', '.git', 'dist', 'build', '.next', '__pycache__', 'playwright-report', 'test-results']);
+    const out = [];
+    const MAX = 1000;
+    function walk(dir, relPrefix) {
+        if (out.length >= MAX) return;
+        let entries;
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+        catch { return; }
+        for (const e of entries) {
+            if (out.length >= MAX) return;
+            if (e.name.startsWith('.') && e.name !== '.env.example') continue;
+            if (SKIP_DIRS.has(e.name)) continue;
+            const rel = relPrefix ? `${relPrefix}/${e.name}` : e.name;
+            if (e.isDirectory()) { walk(path.join(dir, e.name), rel); continue; }
+            if (!e.isFile()) continue;
+            if (q && !rel.toLowerCase().includes(q) && !e.name.toLowerCase().includes(q)) continue;
+            out.push({ path: rel, name: e.name });
+        }
+    }
+    walk(cwd, '');
+    if (q) {
+        out.sort((a, b) => {
+            const aHit = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+            const bHit = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+            if (aHit !== bHit) return aHit - bHit;
+            return a.path.localeCompare(b.path);
+        });
+    }
+    res.json({ cwd, files: out.slice(0, 200), total: out.length, capped: out.length >= MAX });
+});
+
 // Metrics — JSON snapshot of in-memory counters + uptime + active session
 // count. Behind the same auth gate as everything else; loopback by default
 // so this is safe to expose, but a downstream scraper still has to read the
@@ -465,12 +548,13 @@ wss.on('connection', (ws, req) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const attachId = url.searchParams.get('attach') || '';
     const resumeId = url.searchParams.get('resume') || '';
-    const resumeCwd = url.searchParams.get('cwd') || '';
-    // For resume sessions, use the original cwd if provided & safe.
-    // For attach, always use DEFAULT_CWD.
+    const reqCwd = url.searchParams.get('cwd') || '';
+    // cwd resolution (in order):
+    //   - attach: always DEFAULT_CWD (attach reuses the original session's cwd)
+    //   - resume/fresh: ?cwd= if present and inside $HOME, else DEFAULT_CWD
     let cwd = DEFAULT_CWD;
-    if (resumeId && resumeCwd) {
-        const safe = safeResumeCwd(resumeCwd);
+    if (!attachId && reqCwd) {
+        const safe = safeResumeCwd(reqCwd);
         if (safe) cwd = safe;
     }
 
