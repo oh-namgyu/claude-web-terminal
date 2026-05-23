@@ -1,0 +1,17 @@
+.git
+.github
+.gitignore
+.dockerignore
+node_modules
+test-results
+playwright-report
+e2e
+playwright.config.ts
+*.log
+.DS_Store
+.env
+.env.local
+README.md
+SECURITY.md
+CHANGELOG.md
+docs

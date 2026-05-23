@@ -1,0 +1,38 @@
+# Minimal compose for running claude-web-terminal locally without
+# fighting node/npm versions. `docker compose up` brings the server up
+# on http://127.0.0.1:8765 and persists Claude session state under
+# ./cwt-home so background sessions survive container restarts.
+
+services:
+  cwt:
+    build:
+      context: .
+      args:
+        # Pin to a known-good Claude Code release in production.
+        CLAUDE_CODE_VERSION: latest
+    image: ghcr.io/oh-namgyu/claude-web-terminal:latest
+    container_name: cwt
+    restart: unless-stopped
+    # Bind to loopback by default; change to "8765:8765" to expose on
+    # all interfaces. Pair external exposure with AUTH_TOKEN_HIDE=true
+    # and a reverse proxy that adds TLS — see SECURITY.md.
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      # The CLI inside the container looks at $HOME/.claude for
+      # credentials and session data — the volume below makes that
+      # persistent across container restarts.
+      HOME: /home/node
+      DEFAULT_CWD: /work
+      LOG_FORMAT: json
+      LOG_LEVEL: info
+      # Set AUTH_TOKEN to a long random secret if you want a stable
+      # bootstrap URL across restarts. Otherwise the random one is
+      # printed at boot (read with `docker compose logs cwt`).
+      # AUTH_TOKEN: ${AUTH_TOKEN:-}
+      # AUTH_TOKEN_HIDE: "true"
+    volumes:
+      # Claude credentials + session data
+      - ./cwt-home:/home/node/.claude
+      # Mount your code so Claude can read it from inside the container
+      - ./work:/work

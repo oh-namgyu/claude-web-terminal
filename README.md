@@ -83,6 +83,17 @@ cp .env.example .env       # adjust HOST/PORT if you like
 npm start
 ```
 
+### Docker
+
+A `compose.yml` is included; `ghcr.io/oh-namgyu/claude-web-terminal:latest` is built on every push to `main`:
+
+```bash
+docker compose up -d
+docker compose logs cwt    # copy the bootstrap URL printed at boot
+```
+
+The compose file mounts `./cwt-home` → `~/.claude` (Claude credentials / session data) and `./work` → `/work` (the code you want Claude to see). Default bind is `127.0.0.1:8765`; if you change it to expose on a network, pair with `AUTH_TOKEN_HIDE=true`, set `AUTH_TOKEN` to a long random secret, and put a TLS-terminating reverse proxy in front.
+
 On first start the console prints a bootstrap URL with a one-time token:
 
 ```
