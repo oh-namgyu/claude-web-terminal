@@ -154,10 +154,11 @@ body {
 .cwd-picker .cwd-label { overflow: hidden; text-overflow: ellipsis; }
 .cwd-picker .cwd-arrow { opacity: 0.6; }
 .cwd-menu {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  right: 0;
+  /* Positioned by JS via getBoundingClientRect so it never gets clipped by
+     overflow:hidden ancestors or pushed off-screen by ime-bar layout. */
+  position: fixed;
   min-width: 280px;
+  max-width: 420px;
   max-height: 320px;
   overflow-y: auto;
   background: var(--panel, #1d222b);

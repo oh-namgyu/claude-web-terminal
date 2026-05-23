@@ -930,6 +930,24 @@ cwdMenu.addEventListener('click', (e) => {
     imeInput.focus();
 });
 
+// Position the dropdown menu relative to the picker so overflow:hidden
+// ancestors and tight ime-bar layouts can't clip or push it off-screen.
+function _positionCwdMenu() {
+    if (!cwdPicker.open) return;
+    const r = cwdPicker.getBoundingClientRect();
+    const menuW = Math.min(420, Math.max(280, r.width));
+    let left = r.right - menuW;
+    if (left < 8) left = 8;
+    const maxLeft = window.innerWidth - menuW - 8;
+    if (left > maxLeft) left = Math.max(8, maxLeft);
+    const bottom = window.innerHeight - r.top + 4;
+    cwdMenu.style.left = left + 'px';
+    cwdMenu.style.bottom = bottom + 'px';
+    cwdMenu.style.width = menuW + 'px';
+}
+cwdPicker.addEventListener('toggle', _positionCwdMenu);
+window.addEventListener('resize', _positionCwdMenu);
+
 document.querySelectorAll('.model-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const m = btn.dataset.model;
