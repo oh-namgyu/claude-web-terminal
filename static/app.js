@@ -683,24 +683,19 @@ function updateImeMode() {
     const pass = isPassthroughText(imeInput.value);
     imeInput.classList.toggle('passthrough', pass);
     imeMode.classList.toggle('passthrough', pass);
-    imeMode.textContent = pass ? 'passthrough' : 'buffered';
+    // Body text is always buffered. Passthrough(`/`,`@`,`#`) only keeps keydown shortcuts(Esc/arrows/Tab) live.
+    imeMode.textContent = pass ? 'slash (keys live)' : 'buffered';
 }
 
 let _prevImeValue = '';
 
 imeInput.addEventListener('input', (e) => {
-    if (e.isComposing) { _prevImeValue = imeInput.value; updateImeMode(); return; }
-    const cur = imeInput.value;
-    if (isPassthroughText(cur) || isPassthroughText(_prevImeValue)) {
-        if (cur.length >= _prevImeValue.length && cur.startsWith(_prevImeValue)) {
-            const delta = cur.slice(_prevImeValue.length);
-            if (delta) sendToActive(delta);
-        } else if (cur.length < _prevImeValue.length && _prevImeValue.startsWith(cur)) {
-            const n = _prevImeValue.length - cur.length;
-            sendToActive('\x7f'.repeat(n));
-        }
-    }
-    _prevImeValue = cur;
+    // Body text is always buffered — sent on Enter as a single chunk.
+    // The previous design sent deltas live in passthrough mode (`/`,`@`,`#`-prefix),
+    // but Hangul/IME composition could race out of bounds and corrupt the buffer.
+    // Slash commands with non-ASCII args are common, so live body send is dropped.
+    // Shortcut keys (arrows/Esc/Tab) still go live via keydown below.
+    _prevImeValue = imeInput.value;
     updateImeMode();
 });
 
@@ -714,8 +709,8 @@ imeInput.addEventListener('keydown', (e) => {
     const pass = isPassthroughText(imeInput.value);
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        if (pass) sendToActive('\r');
-        else if (imeInput.value.length > 0) sendToActive(imeInput.value + '\r');
+        if (imeInput.value.length > 0) sendToActive(imeInput.value + '\r');
+        else if (pass) sendToActive('\r');
         imeInput.value = ''; _prevImeValue = ''; updateImeMode();
         return;
     }
@@ -745,9 +740,7 @@ document.querySelectorAll('.model-btn').forEach(btn => {
 
 imeSend.addEventListener('click', () => {
     if (imeInput.value.length === 0) return;
-    const pass = isPassthroughText(imeInput.value);
-    if (pass) sendToActive('\r');
-    else sendToActive(imeInput.value + '\r');
+    sendToActive(imeInput.value + '\r');
     imeInput.value = ''; _prevImeValue = ''; updateImeMode();
     imeInput.focus();
 });
