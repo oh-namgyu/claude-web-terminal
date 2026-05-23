@@ -697,21 +697,35 @@ imeInput.addEventListener('input', (e) => {
     // Shortcut keys (arrows/Esc/Tab) still go live via keydown below.
     _prevImeValue = imeInput.value;
     updateImeMode();
+    updateSlashPalette();
 });
 
 imeInput.addEventListener('compositionend', () => {
     _prevImeValue = imeInput.value;
     updateImeMode();
+    updateSlashPalette();
 });
 
 imeInput.addEventListener('keydown', (e) => {
     if (e.isComposing) return;
+    // Slash palette intercept — when open, arrows/Tab/Enter/Esc drive the palette.
+    if (slashPaletteOpen()) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); movePaletteSel(+1); return; }
+        if (e.key === 'ArrowUp')   { e.preventDefault(); movePaletteSel(-1); return; }
+        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+            e.preventDefault();
+            pickPaletteSel();
+            return;
+        }
+        if (e.key === 'Escape') { e.preventDefault(); hideSlashPalette(); return; }
+    }
     const pass = isPassthroughText(imeInput.value);
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (imeInput.value.length > 0) sendToActive(imeInput.value + '\r');
         else if (pass) sendToActive('\r');
         imeInput.value = ''; _prevImeValue = ''; updateImeMode();
+        hideSlashPalette();
         return;
     }
     if (pass) {
@@ -727,6 +741,97 @@ imeInput.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// ===== Slash command floating palette =====
+// Triggered when imeInput starts with '/'. Fetches once per minute from
+// /api/slash-commands (= ~/.claude/commands/*.md frontmatter + builtins).
+// Body text is buffered (see input handler above) so the CLI itself never
+// sees per-keystroke; this palette gives back the autocomplete preview.
+const slashPalette = document.getElementById('slashPalette');
+let _slashCommandsCache = null;
+let _slashCommandsFetched = 0;
+let _paletteItems = [];
+let _paletteIdx = -1;
+
+async function loadSlashCommands() {
+    if (_slashCommandsCache && Date.now() - _slashCommandsFetched < 60000) return _slashCommandsCache;
+    try {
+        const r = await fetch('/api/slash-commands', { credentials: 'include' });
+        if (!r.ok) return null;
+        const j = await r.json();
+        _slashCommandsCache = j.commands || [];
+        _slashCommandsFetched = Date.now();
+        return _slashCommandsCache;
+    } catch { return null; }
+}
+
+function slashPaletteOpen() { return !slashPalette.classList.contains('hidden'); }
+
+function hideSlashPalette() {
+    slashPalette.classList.add('hidden');
+    _paletteItems = [];
+    _paletteIdx = -1;
+}
+
+function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+async function updateSlashPalette() {
+    const v = imeInput.value;
+    if (!v.startsWith('/')) { hideSlashPalette(); return; }
+    const cmds = await loadSlashCommands();
+    if (!cmds) { hideSlashPalette(); return; }
+    const firstToken = v.split(/\s+/)[0].slice(1).toLowerCase();
+    const filtered = cmds.filter(c => c.name.slice(1).toLowerCase().startsWith(firstToken));
+    if (!filtered.length) { hideSlashPalette(); return; }
+    _paletteItems = filtered.slice(0, 20);
+    _paletteIdx = 0;
+    slashPalette.innerHTML = _paletteItems.map((c, i) => `
+        <div class="slash-item${i === 0 ? ' sel' : ''}" data-i="${i}" role="option">
+            <span class="slash-name">${escHtml(c.name)}</span>
+            <span class="slash-desc">${escHtml(c.description || '')}</span>
+            <span class="slash-source">${escHtml(c.source)}</span>
+        </div>
+    `).join('');
+    slashPalette.classList.remove('hidden');
+}
+
+function movePaletteSel(delta) {
+    if (!_paletteItems.length) return;
+    _paletteIdx = (_paletteIdx + delta + _paletteItems.length) % _paletteItems.length;
+    slashPalette.querySelectorAll('.slash-item').forEach((el, i) => el.classList.toggle('sel', i === _paletteIdx));
+    const cur = slashPalette.querySelector('.slash-item.sel');
+    if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+
+function pickPaletteSel() {
+    if (_paletteIdx < 0 || _paletteIdx >= _paletteItems.length) { hideSlashPalette(); return; }
+    const cmd = _paletteItems[_paletteIdx];
+    const rest = imeInput.value.split(/\s+/).slice(1).join(' ');
+    imeInput.value = rest ? `${cmd.name} ${rest}` : `${cmd.name} `;
+    _prevImeValue = imeInput.value;
+    updateImeMode();
+    hideSlashPalette();
+    imeInput.focus();
+    imeInput.selectionStart = imeInput.selectionEnd = imeInput.value.length;
+}
+
+slashPalette.addEventListener('mousedown', (e) => {
+    const item = e.target.closest('.slash-item');
+    if (!item) return;
+    e.preventDefault();
+    _paletteIdx = parseInt(item.dataset.i, 10);
+    pickPaletteSel();
+});
+
+document.addEventListener('mousedown', (e) => {
+    if (!slashPaletteOpen()) return;
+    if (slashPalette.contains(e.target) || e.target === imeInput) return;
+    hideSlashPalette();
+});
+
+imeInput.addEventListener('focus', () => { loadSlashCommands(); }, { once: true });
 
 document.querySelectorAll('.model-btn').forEach(btn => {
     btn.addEventListener('click', () => {

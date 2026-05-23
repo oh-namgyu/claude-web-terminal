@@ -214,6 +214,58 @@ app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
 });
 
+// Slash command palette — UI floating preview.
+// Source: ~/.claude/commands/*.md frontmatter description
+//       + hardcoded Claude Code builtins (subject to Anthropic CLI version drift).
+const SLASH_COMMANDS_DIR = path.join(os.homedir(), '.claude', 'commands');
+const BUILTIN_SLASH_COMMANDS = [
+    { name: '/help',    description: 'Get help with using Claude Code' },
+    { name: '/clear',   description: 'Clear the conversation context' },
+    { name: '/init',    description: 'Initialize CLAUDE.md from the current codebase' },
+    { name: '/cost',    description: 'Show token usage / cost summary' },
+    { name: '/model',   description: 'Switch the active Claude model' },
+    { name: '/config',  description: 'Open the configuration UI' },
+    { name: '/compact', description: 'Compact the conversation to free context' },
+    { name: '/export',  description: 'Export the current conversation' },
+    { name: '/resume',  description: 'Resume a previous session' },
+    { name: '/login',   description: 'Sign in to Anthropic' },
+    { name: '/logout',  description: 'Sign out of Anthropic' },
+    { name: '/add-dir', description: 'Add a working directory to the session' },
+];
+let _slashCache = null;
+let _slashCacheAt = 0;
+function listSlashCommands() {
+    if (_slashCache && Date.now() - _slashCacheAt < 60000) return _slashCache;
+    const user = [];
+    try {
+        const files = fs.readdirSync(SLASH_COMMANDS_DIR);
+        for (const f of files) {
+            if (!f.endsWith('.md')) continue;
+            const name = '/' + f.replace(/\.md$/, '');
+            let description = '';
+            try {
+                const content = fs.readFileSync(path.join(SLASH_COMMANDS_DIR, f), 'utf-8');
+                const m = content.match(/^---\s*\n([\s\S]*?)\n---/);
+                if (m) {
+                    const dm = m[1].match(/^description:\s*(.+)$/m);
+                    if (dm) description = dm[1].trim();
+                }
+            } catch {}
+            user.push({ name, description, source: 'user' });
+        }
+    } catch {}
+    user.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+    _slashCache = [
+        ...BUILTIN_SLASH_COMMANDS.map(c => ({ ...c, source: 'builtin' })),
+        ...user,
+    ];
+    _slashCacheAt = Date.now();
+    return _slashCache;
+}
+app.get('/api/slash-commands', (_req, res) => {
+    res.json({ commands: listSlashCommands() });
+});
+
 // Metrics — JSON snapshot of in-memory counters + uptime + active session
 // count. Behind the same auth gate as everything else; loopback by default
 // so this is safe to expose, but a downstream scraper still has to read the

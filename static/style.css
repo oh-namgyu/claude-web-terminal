@@ -80,7 +80,51 @@ body {
 .ime-bar {
   display: flex; align-items: stretch; gap: 6px;
   padding: 6px 8px; background: var(--panel); border-top: 1px solid var(--border);
+  position: relative;
 }
+
+/* Slash command floating palette — appears above imeInput when '/' typed */
+.slash-palette {
+  position: absolute;
+  left: 8px; right: 8px;
+  bottom: calc(100% + 4px);
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--panel, #1d222b);
+  border: 1px solid var(--border, #303844);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  z-index: 1000;
+  font-size: 13px;
+}
+.slash-palette.hidden { display: none; }
+.slash-item {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.slash-item:hover { background: rgba(255, 255, 255, 0.04); }
+.slash-item.sel { background: var(--accent, #45c4b0); color: #111; }
+.slash-item .slash-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  min-width: 130px;
+  flex-shrink: 0;
+}
+.slash-item .slash-desc {
+  flex: 1;
+  opacity: 0.82;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slash-item .slash-source {
+  font-size: 11px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.slash-item.sel .slash-desc,
+.slash-item.sel .slash-source { opacity: 0.75; }
 
 .busy-bar {
   position: relative;
