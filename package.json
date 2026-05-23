@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "postinstall": "node scripts/fix-pty-perms.js",
+    "lint": "eslint .",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed"
   },
@@ -28,6 +29,9 @@
     "agent-view"
   ],
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.60.0",
+    "eslint": "^9.39.4",
+    "globals": "^15.15.0"
   }
 }

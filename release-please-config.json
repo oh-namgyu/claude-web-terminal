@@ -1,0 +1,23 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "claude-web-terminal",
+      "include-component-in-tag": false,
+      "extra-files": [
+        "package.json"
+      ]
+    }
+  },
+  "changelog-sections": [
+    {"type": "feat", "section": "Features"},
+    {"type": "fix", "section": "Bug Fixes"},
+    {"type": "security", "section": "Security"},
+    {"type": "perf", "section": "Performance"},
+    {"type": "docs", "section": "Documentation"},
+    {"type": "ci", "section": "Continuous Integration"},
+    {"type": "build", "section": "Build System"},
+    {"type": "refactor", "section": "Code Refactoring"},
+    {"type": "test", "section": "Tests"}
+  ]
+}

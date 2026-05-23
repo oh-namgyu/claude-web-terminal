@@ -218,7 +218,6 @@ let _activeDays = 0;
 
 // Track status per session to detect working→idle transitions and notify.
 const _prevStatus = {};
-let _statusBaselineDone = false;
 
 function _notifySessionIdle(s) {
     if (!('Notification' in window)) return;
@@ -246,7 +245,6 @@ function _checkStatusTransitions(bg) {
     }
     for (const id of Object.keys(_prevStatus)) if (!seen.has(id)) delete _prevStatus[id];
     if (transitions.length) console.debug('[cwt] status transitions:', transitions);
-    _statusBaselineDone = true;
 }
 
 // Live event stream from server — survives background-tab throttling.
