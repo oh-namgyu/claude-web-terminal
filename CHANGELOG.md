@@ -2,6 +2,21 @@
 
 All notable changes to claude-web-terminal.
 
+## Unreleased — 2026-05-23
+
+### Security
+- **CSRF hardening on state-changing requests.** `POST`/`PUT`/`PATCH`/`DELETE` to any `/api/*` path now require an `Origin` header. Browsers always send one; `curl` / native apps usually don't — so a missing `Origin` on a mutating method is treated as a non-browser caller piggybacking on the auth cookie and rejected with 403.
+- **Per-field metadata schema.** `POST /api/cc-sessions/:id/metadata` validates body against an allowlist (`name: string ≤ 200 chars`, `pinned: boolean`). Unknown fields are rejected with 400, so a buggy or hostile caller can't pollute `~/.claude/session-metadata.json`.
+- **Session-create rate limit.** Sliding 60-second window, `RATE_LIMIT_PER_MIN` (default 30) per auth cookie, returns 429 past the cap. Stops a runaway loop from forking unbounded child processes.
+- **Resume-cwd containment.** The `?cwd=…` parameter is `path.resolve()`-normalized and must land inside `os.homedir()`. A `../etc`-style escape that the old prefix-check would have accepted is now rejected; the server falls back to `DEFAULT_CWD`.
+- **Optional token-print masking.** `AUTH_TOKEN_HIDE=true` redacts the bootstrap URL printed at startup (`?t=abcd…ef`), removing a leak vector for screen-shared or persistently-logged consoles.
+
+### Added
+- **GitHub Actions CI** runs Playwright e2e on every push and PR (Node 22 on Ubuntu, chromium-only) — ~47 s.
+- **Dependabot** — weekly npm + github-actions updates, grouped by production/dev.
+- **`SECURITY.md`** — private reporting via GitHub Security Advisories with an explicit threat model and in-scope list.
+- **e2e security spec** (`e2e/security.spec.ts`) — 14 regression cases covering Origin gate, metadata schema, session-id validation, WS auth, rate-limit burst, resume-cwd containment. Full suite: 20/20 passing.
+
 ## v0.6.0 — 2026-05-13
 
 ### Added
