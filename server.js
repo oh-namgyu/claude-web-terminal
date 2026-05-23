@@ -22,6 +22,11 @@ const PORT = parseInt(process.env.PORT || '8765', 10);
 // SameSite=strict cookie that is then sent automatically for subsequent
 // requests and the WebSocket upgrade.
 const TOKEN = process.env.AUTH_TOKEN || crypto.randomBytes(24).toString('base64url');
+// If you persist server logs or share your screen, the bootstrap URL with
+// the token in clear text becomes a leak. Set AUTH_TOKEN_HIDE=true to print
+// a masked URL — you must then know the token via .env or your secret
+// manager. Default `false` keeps the existing copy-from-terminal flow.
+const AUTH_TOKEN_HIDE = String(process.env.AUTH_TOKEN_HIDE || '').toLowerCase() === 'true';
 const COOKIE_NAME = 'cwt_auth';
 const ALLOWED_ORIGINS = new Set([
     `http://${HOST}:${PORT}`,
@@ -64,6 +69,46 @@ function originRequiredForMethod(req) {
     const origin = req.headers.origin;
     if (!origin) return false;
     return ALLOWED_ORIGINS.has(origin);
+}
+
+// Sliding-window rate limiter for session spawn. Even an authenticated user
+// could accidentally fire a loop that spawns a child process per call; this
+// caps to N requests in the trailing 60s. State is keyed by the auth cookie
+// since that's the only stable per-caller identifier we have.
+const RATE_LIMIT_PER_MIN = Math.max(1, parseInt(process.env.RATE_LIMIT_PER_MIN || '30', 10));
+const _rateBuckets = new Map();
+function rateLimit(req) {
+    const cookies = parseCookies(req.headers.cookie);
+    const key = cookies[COOKIE_NAME] || req.ip || 'anon';
+    const now = Date.now();
+    const window = 60_000;
+    const arr = (_rateBuckets.get(key) || []).filter(t => now - t < window);
+    if (arr.length >= RATE_LIMIT_PER_MIN) {
+        _rateBuckets.set(key, arr);
+        return false;
+    }
+    arr.push(now);
+    _rateBuckets.set(key, arr);
+    return true;
+}
+
+// Resolve a resume-cwd parameter to a safe absolute path under the current
+// user's home directory. Returns the resolved path or null if it escapes.
+// We intentionally do NOT follow symlinks via realpath — the resolved logical
+// path must already be a child of HOME so a malicious symlink that points to
+// /etc still gets caught by the prefix check.
+function safeResumeCwd(input) {
+    if (!input) return null;
+    try {
+        const abs = path.resolve(input);
+        const home = os.homedir();
+        const homeNormalized = home.endsWith(path.sep) ? home : home + path.sep;
+        if (abs !== home && !abs.startsWith(homeNormalized)) return null;
+        if (!fs.existsSync(abs)) return null;
+        return abs;
+    } catch {
+        return null;
+    }
 }
 const CLAUDE_BIN = (() => {
     if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
@@ -221,6 +266,9 @@ setInterval(() => {
 }, 2000);
 
 app.post('/api/cc-sessions', async (req, res) => {
+    if (!rateLimit(req)) {
+        return res.status(429).json({ error: `rate limited; max ${RATE_LIMIT_PER_MIN} sessions per minute` });
+    }
     const prompt = (req.body && req.body.prompt || '').trim();
     if (!prompt) return res.status(400).json({ error: 'prompt required' });
     try {
@@ -310,11 +358,8 @@ wss.on('connection', (ws, req) => {
     // For attach, always use DEFAULT_CWD.
     let cwd = DEFAULT_CWD;
     if (resumeId && resumeCwd) {
-        // Basic safety: cwd must exist and be under /Users or /home
-        if ((resumeCwd.startsWith('/Users/') || resumeCwd.startsWith('/home/')) &&
-            fs.existsSync(resumeCwd)) {
-            cwd = resumeCwd;
-        }
+        const safe = safeResumeCwd(resumeCwd);
+        if (safe) cwd = safe;
     }
 
     let term;
@@ -349,7 +394,12 @@ wss.on('connection', (ws, req) => {
 server.listen(PORT, HOST, () => {
     console.log('claude-web-terminal');
     console.log(`  Open this URL once to authenticate (token is set as a cookie):`);
-    console.log(`  →  http://${HOST}:${PORT}/?t=${TOKEN}`);
+    if (AUTH_TOKEN_HIDE) {
+        const mask = TOKEN.slice(0, 4) + '…' + TOKEN.slice(-2);
+        console.log(`  →  http://${HOST}:${PORT}/?t=${mask}   (AUTH_TOKEN_HIDE=true; full token suppressed)`);
+    } else {
+        console.log(`  →  http://${HOST}:${PORT}/?t=${TOKEN}`);
+    }
     console.log('');
     console.log(`  default cwd: ${DEFAULT_CWD}`);
 });

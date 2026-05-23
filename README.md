@@ -30,6 +30,17 @@ it over HTTP/WebSocket, so it ships with two layers of access control,
   `name` (string ≤ 200 chars) and `pinned` (boolean). Unknown fields
   are rejected — a buggy or hostile caller can't pollute
   `~/.claude/session-metadata.json`.
+- **Session-create rate limit.** `POST /api/cc-sessions` is capped to
+  `RATE_LIMIT_PER_MIN` (default 30) requests per minute per auth cookie;
+  the cap stops a runaway loop from forking unbounded child processes.
+- **Resume-cwd containment.** The `?cwd=…` parameter on the WebSocket
+  resume path is `path.resolve()`-normalized and must land inside your
+  `$HOME`. A `..`-rich or absolute escape (`/etc`, another user's
+  `/Users/<bob>`) is rejected; the server falls back to `DEFAULT_CWD`.
+- **Optional token-print masking.** Set `AUTH_TOKEN_HIDE=true` to print
+  a redacted bootstrap URL (`?t=abcd…ef`) at startup — useful when the
+  console is screen-shared or persistently logged. You then need to
+  know `AUTH_TOKEN` out-of-band.
 
 Do not change `HOST` to `0.0.0.0` on a shared network — even with the
 token, the API surface (cwds, session names, last assistant text, the
