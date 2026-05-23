@@ -878,7 +878,9 @@ document.addEventListener('mousedown', (e) => {
     hideSlashPalette();
 });
 
-imeInput.addEventListener('focus', () => { loadSlashCommands(); loadCwdOptions(); }, { once: true });
+// Prefetch immediately so the dropdown is ready before the user clicks it.
+loadCwdOptions();
+loadSlashCommands();
 
 // ===== cwd picker — toolbar dropdown for working directory =====
 let cwdOptions = [];
@@ -912,6 +914,10 @@ function updateCwdLabel() {
 }
 
 function renderCwdMenu() {
+    if (!cwdOptions.length) {
+        cwdMenu.innerHTML = '<div class="cwd-option" style="opacity:0.6;cursor:default">Loading…</div>';
+        return;
+    }
     cwdMenu.innerHTML = cwdOptions.map(o => `
         <div class="cwd-option${o.isRoot ? ' root' : ''}${o.path === currentCwd ? ' cur' : ''}" data-path="${escHtml(o.path)}" role="option">
             ${escHtml(o.label)}
@@ -934,6 +940,7 @@ cwdMenu.addEventListener('click', (e) => {
 // ancestors and tight ime-bar layouts can't clip or push it off-screen.
 function _positionCwdMenu() {
     if (!cwdPicker.open) return;
+    if (!cwdOptions.length) { renderCwdMenu(); loadCwdOptions(); }
     const r = cwdPicker.getBoundingClientRect();
     const menuW = Math.min(420, Math.max(280, r.width));
     let left = r.right - menuW;

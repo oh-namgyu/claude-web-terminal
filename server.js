@@ -311,6 +311,10 @@ app.get('/api/cwd-options', (_req, res) => {
     res.json({ options: listCwdOptions(), default: DEFAULT_CWD });
 });
 
+// Warm cache at boot so the first dropdown open is instant (recursive
+// readdirSync over $HOME is ~100ms cold on macOS APFS).
+setImmediate(() => { try { listCwdOptions(); } catch {} });
+
 // File listing for `@` palette autocomplete — flat list of files under cwd.
 // gitignore-aware via simple skip-set. Capped at 1000 entries.
 app.get('/api/files', (req, res) => {
