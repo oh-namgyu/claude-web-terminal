@@ -18,14 +18,16 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 WORKDIR /app
 
-# Production deps only; lock-step with package-lock.json.
+# Copy scripts first so the postinstall (node scripts/fix-pty-perms.js)
+# can run during `npm ci`. Production deps only; lock-step with
+# package-lock.json.
 COPY package.json package-lock.json ./
+COPY scripts ./scripts
 RUN npm ci --omit=dev
 
 COPY server.js eslint.config.js ./
 COPY lib ./lib
 COPY static ./static
-COPY scripts ./scripts
 COPY bin ./bin
 
 # Default host = 0.0.0.0 so the container is reachable from the host;
