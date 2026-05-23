@@ -168,6 +168,21 @@ body {
   padding: 4px;
   z-index: 1001;
 }
+.cwd-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  background: var(--bg, #0a0a1a);
+  border: 1px solid var(--border, #303844);
+  border-radius: 4px;
+  color: var(--text, #e0e0e0);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  outline: none;
+}
+.cwd-search:focus { border-color: var(--accent, #45c4b0); }
+.cwd-list { max-height: 260px; overflow-y: auto; }
 .cwd-option {
   padding: 6px 10px;
   border-radius: 4px;

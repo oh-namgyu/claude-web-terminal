@@ -64,7 +64,10 @@
       <div class="slash-palette hidden" id="slashPalette" role="listbox" aria-label="Command palette"></div>
       <details class="cwd-picker" id="cwdPicker" title="Working directory for new tabs">
         <summary><span class="cwd-icon">📁</span><span class="cwd-label" id="cwdLabel">(default)</span><span class="cwd-arrow">▾</span></summary>
-        <div class="cwd-menu" id="cwdMenu" role="listbox" aria-label="Working directory"></div>
+        <div class="cwd-menu" id="cwdMenu" role="listbox" aria-label="Working directory">
+          <input type="text" class="cwd-search" id="cwdSearch" placeholder="filter…" autocomplete="off" />
+          <div class="cwd-list" id="cwdList"></div>
+        </div>
       </details>
       <textarea id="imeInput" rows="1"
                 placeholder="IME-friendly input. Enter sends. Type / for commands, @ for files."

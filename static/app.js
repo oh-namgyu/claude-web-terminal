@@ -885,9 +885,12 @@ loadSlashCommands();
 // ===== cwd picker — toolbar dropdown for working directory =====
 let cwdOptions = [];
 let currentCwd = null;
+let _cwdFilter = '';
 const cwdPicker = document.getElementById('cwdPicker');
 const cwdMenu = document.getElementById('cwdMenu');
 const cwdLabel = document.getElementById('cwdLabel');
+const cwdSearch = document.getElementById('cwdSearch');
+const cwdList = document.getElementById('cwdList');
 
 async function loadCwdOptions() {
     if (cwdOptions.length) return cwdOptions;
@@ -915,10 +918,16 @@ function updateCwdLabel() {
 
 function renderCwdMenu() {
     if (!cwdOptions.length) {
-        cwdMenu.innerHTML = '<div class="cwd-option" style="opacity:0.6;cursor:default">Loading…</div>';
+        cwdList.innerHTML = '<div class="cwd-option" style="opacity:0.6;cursor:default">Loading…</div>';
         return;
     }
-    cwdMenu.innerHTML = cwdOptions.map(o => `
+    const q = _cwdFilter.toLowerCase();
+    const filtered = q ? cwdOptions.filter(o => o.label.toLowerCase().includes(q)) : cwdOptions;
+    if (!filtered.length) {
+        cwdList.innerHTML = '<div class="cwd-option" style="opacity:0.6;cursor:default">No match</div>';
+        return;
+    }
+    cwdList.innerHTML = filtered.map(o => `
         <div class="cwd-option${o.isRoot ? ' root' : ''}${o.path === currentCwd ? ' cur' : ''}" data-path="${escHtml(o.path)}" role="option">
             ${escHtml(o.label)}
         </div>
@@ -927,14 +936,26 @@ function renderCwdMenu() {
 
 cwdMenu.addEventListener('click', (e) => {
     const el = e.target.closest('.cwd-option');
-    if (!el) return;
+    if (!el || !el.dataset.path) return;
     currentCwd = el.dataset.path;
     cwdPicker.removeAttribute('open');
+    _cwdFilter = ''; cwdSearch.value = '';
     renderCwdMenu();
     updateCwdLabel();
     addTab({ newCwd: currentCwd });
     imeInput.focus();
 });
+
+cwdSearch.addEventListener('input', () => { _cwdFilter = cwdSearch.value; renderCwdMenu(); });
+cwdSearch.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); cwdPicker.removeAttribute('open'); }
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const first = cwdList.querySelector('.cwd-option[data-path]');
+        if (first) first.click();
+    }
+});
+cwdSearch.addEventListener('click', (e) => e.stopPropagation());
 
 // Position the dropdown menu relative to the picker so overflow:hidden
 // ancestors and tight ime-bar layouts can't clip or push it off-screen.
@@ -952,7 +973,10 @@ function _positionCwdMenu() {
     cwdMenu.style.bottom = bottom + 'px';
     cwdMenu.style.width = menuW + 'px';
 }
-cwdPicker.addEventListener('toggle', _positionCwdMenu);
+cwdPicker.addEventListener('toggle', () => {
+    _positionCwdMenu();
+    if (cwdPicker.open) { setTimeout(() => cwdSearch.focus(), 0); }
+});
 window.addEventListener('resize', _positionCwdMenu);
 
 document.querySelectorAll('.model-btn').forEach(btn => {
