@@ -13,6 +13,21 @@ const { WebSocketServer } = require('ws');
 const pty = require('node-pty');
 
 const { listSessions, createSession, stopSession, listResumableSessions, updateSessionMetadata, getSessionMetadata } = require('./lib/cc-sessions');
+const log = require('./lib/log');
+
+// Simple in-memory counters for /api/metrics. Reset on process restart;
+// for cross-restart aggregation, scrape and forward to your own store.
+const _bootTime = Date.now();
+const _metrics = {
+    requests_total: 0,
+    auth_failures_total: 0,
+    origin_blocked_total: 0,
+    rate_limited_total: 0,
+    sessions_created_total: 0,
+    sessions_stopped_total: 0,
+    ws_connections_total: 0,
+    ws_active: 0,
+};
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = parseInt(process.env.PORT || '8765', 10);
@@ -134,6 +149,10 @@ const wss = new WebSocketServer({ noServer: true });
 
 app.use(express.json());
 
+// Request counter on every incoming request (counts after express has parsed
+// the URL but before any auth check, so failed-auth requests still register).
+app.use((req, _res, next) => { _metrics.requests_total++; next(); });
+
 // Bootstrap: accept ?t=<token>, set cookie, redirect to clean URL.
 // All other paths require either a valid cookie OR a valid ?t param.
 app.use((req, res, next) => {
@@ -142,6 +161,8 @@ app.use((req, res, next) => {
             res.cookie(COOKIE_NAME, TOKEN, { httpOnly: true, sameSite: 'strict', secure: false });
             return res.redirect('/');
         }
+        _metrics.auth_failures_total++;
+        log.warn('auth.bootstrap_bad_token', { ip: req.ip, path: req.path });
         return res.status(401).send('Invalid token.');
     }
     next();
@@ -150,6 +171,8 @@ app.use((req, res, next) => {
 // Auth gate — applies to everything except the unauthorized page itself.
 app.use((req, res, next) => {
     if (hasValidAuth(req)) return next();
+    _metrics.auth_failures_total++;
+    log.warn('auth.missing_cookie', { method: req.method, path: req.path });
     res.status(401).type('text/html').send(
         '<html><body style="font-family:sans-serif;padding:40px;max-width:600px">' +
         '<h2>Unauthorized</h2>' +
@@ -168,9 +191,15 @@ app.use((req, res, next) => {
 //   same machine could otherwise piggyback on the auth cookie.
 app.use('/api/', (req, res, next) => {
     if (!originRequiredForMethod(req)) {
+        _metrics.origin_blocked_total++;
+        log.warn('origin.missing_on_mutating', { method: req.method, path: req.path });
         return res.status(403).json({ error: 'origin header required for state-changing requests' });
     }
-    if (!originAllowed(req)) return res.status(403).json({ error: 'origin not allowed' });
+    if (!originAllowed(req)) {
+        _metrics.origin_blocked_total++;
+        log.warn('origin.not_allowed', { method: req.method, path: req.path, origin: req.headers.origin });
+        return res.status(403).json({ error: 'origin not allowed' });
+    }
     next();
 });
 
@@ -183,6 +212,24 @@ app.use(express.static(path.join(__dirname, 'static'), {
 
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
+});
+
+// Metrics — JSON snapshot of in-memory counters + uptime + active session
+// count. Behind the same auth gate as everything else; loopback by default
+// so this is safe to expose, but a downstream scraper still has to read the
+// auth cookie.
+app.get('/api/metrics', (_req, res) => {
+    let sessionCounts = { bg: 0, interactive: 0 };
+    try {
+        const s = listSessions();
+        sessionCounts = { bg: (s.bg || []).length, interactive: (s.interactive || []).length };
+    } catch {}
+    res.json({
+        uptime_seconds: Math.floor((Date.now() - _bootTime) / 1000),
+        boot_time_iso: new Date(_bootTime).toISOString(),
+        counters: { ..._metrics },
+        sessions_active: sessionCounts,
+    });
 });
 
 app.get('/api/cc-sessions', (_req, res) => {
@@ -267,14 +314,19 @@ setInterval(() => {
 
 app.post('/api/cc-sessions', async (req, res) => {
     if (!rateLimit(req)) {
+        _metrics.rate_limited_total++;
+        log.warn('rate.session_create', { limit: RATE_LIMIT_PER_MIN });
         return res.status(429).json({ error: `rate limited; max ${RATE_LIMIT_PER_MIN} sessions per minute` });
     }
     const prompt = (req.body && req.body.prompt || '').trim();
     if (!prompt) return res.status(400).json({ error: 'prompt required' });
     try {
         const result = await createSession(prompt, ptyEnv(), DEFAULT_CWD, CLAUDE_BIN);
+        _metrics.sessions_created_total++;
+        log.info('session.created', { id: result.id });
         res.json(result);
     } catch (e) {
+        log.error('session.create_failed', { err: e.message });
         res.status(500).json({ error: e.message });
     }
 });
@@ -282,8 +334,11 @@ app.post('/api/cc-sessions', async (req, res) => {
 app.delete('/api/cc-sessions/:id', async (req, res) => {
     try {
         const result = await stopSession(req.params.id, ptyEnv(), CLAUDE_BIN);
+        _metrics.sessions_stopped_total++;
+        log.info('session.stopped', { id: req.params.id });
         res.json({ ok: true, ...result });
     } catch (e) {
+        log.error('session.stop_failed', { id: req.params.id, err: e.message });
         res.status(500).json({ error: e.message });
     }
 });
@@ -342,6 +397,8 @@ app.get('/api/cc-sessions/:id/metadata', (req, res) => {
 server.on('upgrade', (req, socket, head) => {
     const ok = originAllowed(req) && hasValidAuth(req);
     if (!ok) {
+        _metrics.auth_failures_total++;
+        log.warn('ws.upgrade_unauth', { url: req.url, origin: req.headers.origin || '' });
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return;
@@ -350,6 +407,9 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 wss.on('connection', (ws, req) => {
+    _metrics.ws_connections_total++;
+    _metrics.ws_active++;
+    ws.on('close', () => { _metrics.ws_active = Math.max(0, _metrics.ws_active - 1); });
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const attachId = url.searchParams.get('attach') || '';
     const resumeId = url.searchParams.get('resume') || '';
@@ -392,6 +452,9 @@ wss.on('connection', (ws, req) => {
 });
 
 server.listen(PORT, HOST, () => {
+    log.info('boot', { host: HOST, port: PORT, default_cwd: DEFAULT_CWD,
+                       token_hide: AUTH_TOKEN_HIDE, rate_limit_per_min: RATE_LIMIT_PER_MIN,
+                       log_format: log.FORMAT });
     console.log('claude-web-terminal');
     console.log(`  Open this URL once to authenticate (token is set as a cookie):`);
     if (AUTH_TOKEN_HIDE) {

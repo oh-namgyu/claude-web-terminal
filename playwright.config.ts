@@ -19,7 +19,7 @@ export default defineConfig({
     url: BASE_URL,
     timeout: 60_000,
     reuseExistingServer: false,
-    env: { PORT: String(PORT), HOST, AUTH_TOKEN },
+    env: { PORT: String(PORT), HOST, AUTH_TOKEN, RATE_LIMIT_PER_MIN: "5", LOG_LEVEL: "warn" },
   },
 });
 

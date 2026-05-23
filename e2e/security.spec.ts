@@ -106,27 +106,41 @@ test.describe("WebSocket auth", () => {
 });
 
 test.describe("Session-create rate limit", () => {
-  // Default cap is 30/min. Fire 33 and expect at least one 429. We use a
-  // unique cookie value per test run so prior runs don't contaminate the bucket
-  // — except both spec files share the AUTH_TOKEN cookie, so we accept either
-  // "all 200" (fresh bucket) or "at least one 429" (cap hit) as success. The
-  // hard assertion is that the cap NEVER lets a 31st request through with a
-  // fresh bucket — checked by counting if we see 429 vs only 200.
-  test("burst of 35 POSTs eventually hits 429", async ({ request }) => {
+  // playwright.config.ts pins RATE_LIMIT_PER_MIN=5 for the test server, so a
+  // burst of 8 must yield at least one 429. Keeping the burst small avoids
+  // spinning up 30+ real claude subprocesses during CI.
+  test("burst past the cap yields 429", async ({ request }) => {
     const headers = { cookie: COOKIE, origin: BASE_URL, "content-type": "application/json" };
     let saw429 = false;
-    let saw500or200 = false;
-    for (let i = 0; i < 35; i++) {
+    for (let i = 0; i < 8; i++) {
       const res = await request.post(`${BASE_URL}/api/cc-sessions`, {
         headers, data: { prompt: "noop" }, failOnStatusCode: false,
       });
       if (res.status() === 429) saw429 = true;
-      else saw500or200 = true;
     }
-    // At least one of the two outcomes must occur. In CI the claude binary
-    // isn't installed so createSession 500s, but that still consumes a rate
-    // token — so we expect to see 429 after the cap.
-    expect(saw429 || saw500or200).toBe(true);
+    expect(saw429).toBe(true);
+  });
+});
+
+test.describe("Metrics endpoint", () => {
+  test("GET /api/metrics returns counters + uptime", async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/api/metrics`, {
+      headers: { cookie: COOKIE },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body).toHaveProperty("uptime_seconds");
+    expect(body).toHaveProperty("counters");
+    expect(body.counters).toHaveProperty("requests_total");
+    expect(body.counters).toHaveProperty("auth_failures_total");
+    expect(body).toHaveProperty("sessions_active");
+    expect(body.sessions_active).toHaveProperty("bg");
+    expect(body.sessions_active).toHaveProperty("interactive");
+  });
+
+  test("metrics endpoint requires auth (no cookie → 401)", async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/api/metrics`);
+    expect(res.status()).toBe(401);
   });
 });
 
