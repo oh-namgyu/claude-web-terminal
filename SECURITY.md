@@ -1,5 +1,7 @@
 # Security policy
 
+> **Do not change `HOST` away from `127.0.0.1`.** This server is single-user loopback-only. Binding to `0.0.0.0` or any non-loopback address on a shared network exposes every Claude transcript, shell process, and session metadata on the machine to anyone who can reach the port — the auth cookie is the only barrier and it is not designed for multi-tenant use. The same warning is in [README → Security model](README.md#security-model); they are intentionally duplicated.
+
 ## Reporting a vulnerability
 
 If you've found a security issue in `claude-web-terminal`, **please do not file a public GitHub issue**. Instead, report it privately via [GitHub Security Advisories](https://github.com/oh-namgyu/claude-web-terminal/security/advisories/new).
