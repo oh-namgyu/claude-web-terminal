@@ -61,9 +61,16 @@ function parseCookies(header) {
     return out;
 }
 
+// 상수시간 비교 — 토큰 비교의 타이밍 사이드채널 차단(길이 다르면 즉시 false, 같으면 timingSafeEqual).
+function safeEqual(a, b) {
+    const ba = Buffer.from(String(a == null ? '' : a));
+    const bb = Buffer.from(String(b == null ? '' : b));
+    return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+
 function hasValidAuth(req) {
     const cookies = parseCookies(req.headers.cookie);
-    return cookies[COOKIE_NAME] === TOKEN;
+    return safeEqual(cookies[COOKIE_NAME], TOKEN);
 }
 
 // Browsers always set Origin on cross-origin WS upgrades; for top-level GETs
@@ -157,8 +164,10 @@ app.use((req, _res, next) => { _metrics.requests_total++; next(); });
 // All other paths require either a valid cookie OR a valid ?t param.
 app.use((req, res, next) => {
     if (req.method === 'GET' && req.path === '/' && req.query.t) {
-        if (req.query.t === TOKEN) {
-            res.cookie(COOKIE_NAME, TOKEN, { httpOnly: true, sameSite: 'strict', secure: false });
+        if (safeEqual(req.query.t, TOKEN)) {
+            // secure 쿠키는 HTTPS(직접 또는 TLS 리버스프록시 X-Forwarded-Proto)에서만 — 문서가 TLS 프론트 권장.
+            const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+            res.cookie(COOKIE_NAME, TOKEN, { httpOnly: true, sameSite: 'strict', secure: isHttps });
             return res.redirect('/');
         }
         _metrics.auth_failures_total++;
@@ -553,6 +562,10 @@ wss.on('connection', (ws, req) => {
     const attachId = url.searchParams.get('attach') || '';
     const resumeId = url.searchParams.get('resume') || '';
     const reqCwd = url.searchParams.get('cwd') || '';
+    // 제공된 id 는 엄격 검증 — 형식 불일치면 silent downgrade(평범한 claude) 말고 즉시 거부.
+    // (id 가 로그인 셸 명령으로 들어가므로 검증 누락은 곧 잠재 주입; pty spawn 전에 차단.)
+    if (attachId && !/^[a-f0-9]+$/i.test(attachId)) { ws.close(1008, 'invalid attach id'); return; }
+    if (resumeId && !/^[a-f0-9-]+$/i.test(resumeId)) { ws.close(1008, 'invalid resume id'); return; }
     // cwd resolution (in order):
     //   - attach: always DEFAULT_CWD (attach reuses the original session's cwd)
     //   - resume/fresh: ?cwd= if present and inside $HOME, else DEFAULT_CWD
@@ -577,12 +590,9 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    let launchCmd = 'claude';
-    if (attachId && /^[a-f0-9]+$/i.test(attachId)) {
-        launchCmd = `claude attach ${attachId}`;
-    } else if (resumeId && /^[a-f0-9-]+$/i.test(resumeId)) {
-        launchCmd = `claude --resume ${resumeId}`;
-    }
+    let launchCmd = 'claude';                            // id 는 위에서 이미 검증됨(불일치 시 거부됨)
+    if (attachId) launchCmd = `claude attach ${attachId}`;
+    else if (resumeId) launchCmd = `claude --resume ${resumeId}`;
     setTimeout(() => term.write(launchCmd + '\r'), 500);
 
     term.onData(d => { if (ws.readyState === ws.OPEN) ws.send(d); });
