@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { AUTH_TOKEN, BASE_URL } from "../playwright.config";
 
-// 보안 회귀 — Origin 강제, metadata schema, id 형식, WS 인증.
-// smoke.spec.ts 는 골든패스, 여기는 거절 케이스만.
+// Security regression — Origin enforcement, metadata schema, id format, WS auth.
+// smoke.spec.ts covers the golden path; this file covers rejection cases only.
 
 const COOKIE = `cwt_auth=${AUTH_TOKEN}`;
 

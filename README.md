@@ -37,6 +37,9 @@ it over HTTP/WebSocket, so it ships with two layers of access control,
   resume path is `path.resolve()`-normalized and must land inside your
   `$HOME`. A `..`-rich or absolute escape (`/etc`, another user's
   `/Users/<bob>`) is rejected; the server falls back to `DEFAULT_CWD`.
+  The resolved path is then re-checked with `fs.realpathSync`, so a
+  symlink inside `$HOME` that points outside it (`~/x → /etc`) is rejected
+  too — both the lexical path and its symlink target must be inside `$HOME`.
 - **Optional token-print masking.** Set `AUTH_TOKEN_HIDE=true` to print
   a redacted bootstrap URL (`?t=abcd…ef`) at startup — useful when the
   console is screen-shared or persistently logged. You then need to
@@ -195,14 +198,20 @@ happens you see decomposed jamo / kana / pinyin instead of composed
 characters.
 
 The bar below the terminal is a normal-sized textarea that Safari composes
-properly. It has two modes:
+properly. The message body is **always buffered** — you type, press Enter, and
+the whole composed string is sent to the active tab as a single chunk (an
+earlier design forwarded per-keystroke deltas, but IME composition could race
+and corrupt the buffer, so live body send was dropped).
 
-- **buffered** — type your message, press Enter, the whole composed string is
-  sent to the active tab.
-- **passthrough** — if your input starts with `/`, `@`, or `#`, every
-  keystroke is forwarded live so Claude Code's slash-command popup, file
-  mention picker, and memory shortcut all work in real time. Arrow keys,
-  Escape, and Backspace are translated to the right control sequences.
+The mode indicator next to the bar reflects what the **navigation keys** do:
+
+- **buffered** — the default. Only Enter sends; nothing is forwarded live.
+- **slash (keys live)** — shown when your input starts with `/`, `@`, or `#`.
+  The text is still buffered, but the navigation keys go live so Claude Code's
+  slash-command popup, file-mention picker, and memory shortcut stay usable:
+  **↑ ↓ ← → arrows, Escape, and Tab** are translated to the matching control
+  sequences. (Backspace is not forwarded — edit in the textarea instead.) The
+  app also shows its own slash/`@` palette above the bar for these prefixes.
 
 ## Preview without Claude Code installed
 
@@ -220,7 +229,14 @@ All via environment variables — see [`.env.example`](.env.example):
 | `PORT` | `8765` | Web UI port |
 | `CLAUDE_BIN` | *(PATH lookup)* | Path to the `claude` binary |
 | `DEFAULT_CWD` | `$HOME` | Working directory for new tabs |
+| `CWD_ROOTS` | `$HOME` | Comma-separated root dirs whose first-level children populate the cwd dropdown. `devs`/`docs`/`repos`/`projects`/`code` children get an extra nesting level. `~` is expanded. |
 | `AUTH_TOKEN` | *(random per start)* | Fixed loopback auth token. If unset, a random 192-bit token is generated each start and printed to the console as `?t=<token>`. Open that URL once to set the auth cookie. |
+| `AUTH_TOKEN_HIDE` | `false` | Print a masked bootstrap URL (`?t=abcd…ef`) so screen-shares / persisted logs don't leak the token. You then need `AUTH_TOKEN` out-of-band. |
+| `ALLOWED_ORIGINS` | *(loopback http+https)* | Comma-separated extra origins **merged** with the built-in loopback set (`http`/`https` on `localhost`/`127.0.0.1`/`HOST`). Set when fronting with a custom origin (e.g. `https://cwt.local`). |
+| `ALLOW_NO_ORIGIN_WS` | `false` | Allow WebSocket upgrades that carry no `Origin` header. Off by default (a missing Origin is treated as a non-browser caller and rejected, matching the POST policy). Set `1`/`true` for native clients or tests. |
+| `RATE_LIMIT_PER_MIN` | `30` | Max `POST /api/cc-sessions` (session-create) requests per minute per auth cookie. |
+| `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error`. |
+| `LOG_FORMAT` | `text` | `text` (single-line) \| `json` (one object per line, for log scrapers). |
 
 ## What this is not
 

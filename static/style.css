@@ -194,6 +194,15 @@ body {
 .cwd-option:hover { background: rgba(255, 255, 255, 0.04); }
 .cwd-option.root { font-weight: 600; opacity: 0.85; }
 .cwd-option.cur { background: var(--accent, #45c4b0); color: #111; }
+/* Non-selectable placeholder rows (Loading… / No match) in the cwd list. */
+.cwd-option.placeholder { opacity: 0.6; cursor: default; }
+.cwd-option.placeholder:hover { background: transparent; }
+
+/* Demo-mode terminal placeholder shown instead of a real pty (?demo=1). */
+.demo-placeholder {
+  padding: 24px; color: var(--muted);
+  font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.6;
+}
 
 .busy-bar {
   position: relative;

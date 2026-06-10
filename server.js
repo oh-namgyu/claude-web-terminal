@@ -12,7 +12,7 @@ const which = require('child_process').execSync;
 const { WebSocketServer } = require('ws');
 const pty = require('node-pty');
 
-const { listSessions, createSession, stopSession, listResumableSessions, updateSessionMetadata, getSessionMetadata } = require('./lib/cc-sessions');
+const { listSessions, createSession, stopSession, listResumableSessions, updateSessionMetadata, getSessionMetadata, isValidMetadataId } = require('./lib/cc-sessions');
 const log = require('./lib/log');
 
 // Simple in-memory counters for /api/metrics. Reset on process restart;
@@ -43,11 +43,27 @@ const TOKEN = process.env.AUTH_TOKEN || crypto.randomBytes(24).toString('base64u
 // manager. Default `false` keeps the existing copy-from-terminal flow.
 const AUTH_TOKEN_HIDE = String(process.env.AUTH_TOKEN_HIDE || '').toLowerCase() === 'true';
 const COOKIE_NAME = 'cwt_auth';
-const ALLOWED_ORIGINS = new Set([
+// Built-in loopback origins (http + https, with and without the port) so a
+// TLS-terminating reverse proxy on the default https port still matches.
+// ALLOWED_ORIGINS env (comma-separated) is *merged* with these defaults; set
+// it when fronting the server with a custom origin (e.g. https://cwt.local).
+const _defaultOrigins = [
     `http://${HOST}:${PORT}`,
     `http://localhost:${PORT}`,
     `http://127.0.0.1:${PORT}`,
-]);
+    `https://${HOST}:${PORT}`,
+    `https://localhost:${PORT}`,
+    `https://127.0.0.1:${PORT}`,
+    // Port-less https variants for the default 443 fronted by a proxy.
+    `https://${HOST}`,
+    `https://localhost`,
+    `https://127.0.0.1`,
+];
+const _envOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+const ALLOWED_ORIGINS = new Set([..._defaultOrigins, ..._envOrigins]);
 
 function parseCookies(header) {
     const out = {};
@@ -61,7 +77,8 @@ function parseCookies(header) {
     return out;
 }
 
-// 상수시간 비교 — 토큰 비교의 타이밍 사이드채널 차단(길이 다르면 즉시 false, 같으면 timingSafeEqual).
+// Constant-time compare — closes the timing side-channel on token comparison
+// (returns false immediately on length mismatch, else timingSafeEqual).
 function safeEqual(a, b) {
     const ba = Buffer.from(String(a == null ? '' : a));
     const bb = Buffer.from(String(b == null ? '' : b));
@@ -79,6 +96,18 @@ function hasValidAuth(req) {
 function originAllowed(req) {
     const origin = req.headers.origin;
     if (!origin) return true;
+    return ALLOWED_ORIGINS.has(origin);
+}
+
+// Browsers always send Origin on a WebSocket upgrade, so a missing Origin is
+// a non-browser client riding the auth cookie — rejected by default, matching
+// the POST/PUT/PATCH/DELETE policy. Set ALLOW_NO_ORIGIN_WS=1 to permit
+// Origin-less upgrades (native clients, curl --include-headers, tests).
+const ALLOW_NO_ORIGIN_WS = String(process.env.ALLOW_NO_ORIGIN_WS || '').toLowerCase() === '1'
+    || String(process.env.ALLOW_NO_ORIGIN_WS || '').toLowerCase() === 'true';
+function originAllowedForWs(req) {
+    const origin = req.headers.origin;
+    if (!origin) return ALLOW_NO_ORIGIN_WS;
     return ALLOWED_ORIGINS.has(origin);
 }
 
@@ -116,17 +145,23 @@ function rateLimit(req) {
 
 // Resolve a resume-cwd parameter to a safe absolute path under the current
 // user's home directory. Returns the resolved path or null if it escapes.
-// We intentionally do NOT follow symlinks via realpath — the resolved logical
-// path must already be a child of HOME so a malicious symlink that points to
-// /etc still gets caught by the prefix check.
+// The logical (path.resolve'd) path must be inside HOME, AND the realpath
+// (symlinks followed) must also be inside HOME — otherwise a symlink such as
+// ~/escape → /etc would pass the lexical prefix check while pointing outside
+// the home tree. Both checks must hold.
 function safeResumeCwd(input) {
     if (!input) return null;
     try {
-        const abs = path.resolve(input);
         const home = os.homedir();
         const homeNormalized = home.endsWith(path.sep) ? home : home + path.sep;
-        if (abs !== home && !abs.startsWith(homeNormalized)) return null;
+        const isInsideHome = (p) => p === home || p.startsWith(homeNormalized);
+        const abs = path.resolve(input);
+        if (!isInsideHome(abs)) return null;
         if (!fs.existsSync(abs)) return null;
+        // Re-check after resolving symlinks so a symlink inside HOME pointing
+        // outside it (e.g. ~/x → /etc) is rejected.
+        const real = fs.realpathSync(abs);
+        if (!isInsideHome(real)) return null;
         return abs;
     } catch {
         return null;
@@ -165,7 +200,9 @@ app.use((req, _res, next) => { _metrics.requests_total++; next(); });
 app.use((req, res, next) => {
     if (req.method === 'GET' && req.path === '/' && req.query.t) {
         if (safeEqual(req.query.t, TOKEN)) {
-            // secure 쿠키는 HTTPS(직접 또는 TLS 리버스프록시 X-Forwarded-Proto)에서만 — 문서가 TLS 프론트 권장.
+            // Mark the cookie `secure` only over HTTPS (direct, or behind a
+            // TLS reverse proxy that sets X-Forwarded-Proto) — the docs
+            // recommend fronting this with TLS.
             const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
             res.cookie(COOKIE_NAME, TOKEN, { httpOnly: true, sameSite: 'strict', secure: isHttps });
             return res.redirect('/');
@@ -182,11 +219,17 @@ app.use((req, res, next) => {
     if (hasValidAuth(req)) return next();
     _metrics.auth_failures_total++;
     log.warn('auth.missing_cookie', { method: req.method, path: req.path });
+    // Self-contained page: an unauthenticated client can't fetch /style.css
+    // (this same gate blocks it), so the styles live in an inline <style>
+    // block with classes rather than inline style="" attributes.
     res.status(401).type('text/html').send(
-        '<html><body style="font-family:sans-serif;padding:40px;max-width:600px">' +
+        '<html><head><style>' +
+        '.unauth-body{font-family:sans-serif;padding:40px;max-width:600px}' +
+        '.unauth-cmd{background:#eee;padding:10px;border-radius:4px}' +
+        '</style></head><body class="unauth-body">' +
         '<h2>Unauthorized</h2>' +
         '<p>This server requires a loopback token. Open the URL shown in the server console:</p>' +
-        '<pre style="background:#eee;padding:10px;border-radius:4px">npm start</pre>' +
+        '<pre class="unauth-cmd">npm start</pre>' +
         '<p>Copy the printed <code>http://&hellip;/?t=&lt;token&gt;</code> URL into your browser. ' +
         'A cookie will be set so subsequent visits work without the token.</p>' +
         '</body></html>'
@@ -334,13 +377,22 @@ app.get('/api/files', (req, res) => {
     const SKIP_DIRS = new Set(['node_modules', '.venv', 'venv', '.git', 'dist', 'build', '.next', '__pycache__', 'playwright-report', 'test-results']);
     const out = [];
     const MAX = 1000;
+    // Hard cap on directory entries visited. A synchronous recursive walk over
+    // a pathological tree (huge monorepo, symlink fan-out) would otherwise
+    // block the event loop for seconds; stop early once we've inspected this
+    // many nodes even if MAX results weren't reached.
+    const MAX_VISITS = 20000;
+    let visited = 0;
+    let walkCapped = false;
     function walk(dir, relPrefix) {
-        if (out.length >= MAX) return;
+        if (out.length >= MAX || visited >= MAX_VISITS) return;
         let entries;
         try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
         catch { return; }
         for (const e of entries) {
             if (out.length >= MAX) return;
+            if (visited >= MAX_VISITS) { walkCapped = true; return; }
+            visited++;
             if (e.name.startsWith('.') && e.name !== '.env.example') continue;
             if (SKIP_DIRS.has(e.name)) continue;
             const rel = relPrefix ? `${relPrefix}/${e.name}` : e.name;
@@ -359,7 +411,7 @@ app.get('/api/files', (req, res) => {
             return a.path.localeCompare(b.path);
         });
     }
-    res.json({ cwd, files: out.slice(0, 200), total: out.length, capped: out.length >= MAX });
+    res.json({ cwd, files: out.slice(0, 200), total: out.length, capped: out.length >= MAX || walkCapped });
 });
 
 // Metrics — JSON snapshot of in-memory counters + uptime + active session
@@ -517,7 +569,7 @@ function _sanitizeMetadata(body) {
 
 app.post('/api/cc-sessions/:id/metadata', (req, res) => {
     const id = req.params.id;
-    if (!/^[a-f0-9-]{36}$|^[a-f0-9]{6,}$/i.test(id)) return res.status(400).json({ error: 'invalid id' });
+    if (!isValidMetadataId(id)) return res.status(400).json({ error: 'invalid id' });
     const clean = _sanitizeMetadata(req.body);
     if (!clean) return res.status(400).json({ error: 'body must be an object' });
     if (clean._error) return res.status(400).json({ error: clean._error });
@@ -532,7 +584,7 @@ app.post('/api/cc-sessions/:id/metadata', (req, res) => {
 
 app.get('/api/cc-sessions/:id/metadata', (req, res) => {
     const id = req.params.id;
-    if (!/^[a-f0-9-]{36}$|^[a-f0-9]{6,}$/i.test(id)) return res.status(400).json({ error: 'invalid id' });
+    if (!isValidMetadataId(id)) return res.status(400).json({ error: 'invalid id' });
     try {
         const meta = getSessionMetadata(id);
         res.json(meta);
@@ -543,7 +595,7 @@ app.get('/api/cc-sessions/:id/metadata', (req, res) => {
 
 // Manual WS upgrade so we can authenticate before allocating a pty.
 server.on('upgrade', (req, socket, head) => {
-    const ok = originAllowed(req) && hasValidAuth(req);
+    const ok = originAllowedForWs(req) && hasValidAuth(req);
     if (!ok) {
         _metrics.auth_failures_total++;
         log.warn('ws.upgrade_unauth', { url: req.url, origin: req.headers.origin || '' });
@@ -562,8 +614,10 @@ wss.on('connection', (ws, req) => {
     const attachId = url.searchParams.get('attach') || '';
     const resumeId = url.searchParams.get('resume') || '';
     const reqCwd = url.searchParams.get('cwd') || '';
-    // 제공된 id 는 엄격 검증 — 형식 불일치면 silent downgrade(평범한 claude) 말고 즉시 거부.
-    // (id 가 로그인 셸 명령으로 들어가므로 검증 누락은 곧 잠재 주입; pty spawn 전에 차단.)
+    // Strictly validate any supplied id — on a format mismatch reject
+    // immediately rather than silently downgrading to a plain `claude`.
+    // (The id is interpolated into a login-shell command, so a missing
+    // check is a potential injection; block it before the pty spawn.)
     if (attachId && !/^[a-f0-9]+$/i.test(attachId)) { ws.close(1008, 'invalid attach id'); return; }
     if (resumeId && !/^[a-f0-9-]+$/i.test(resumeId)) { ws.close(1008, 'invalid resume id'); return; }
     // cwd resolution (in order):
@@ -590,14 +644,23 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    let launchCmd = 'claude';                            // id 는 위에서 이미 검증됨(불일치 시 거부됨)
+    let launchCmd = 'claude';                            // id already validated above (mismatch → rejected)
     if (attachId) launchCmd = `claude attach ${attachId}`;
     else if (resumeId) launchCmd = `claude --resume ${resumeId}`;
-    setTimeout(() => term.write(launchCmd + '\r'), 500);
+    // Give the login shell time to settle before injecting the launch command.
+    // Hold the timer so a ws close (→ term.kill) before it fires can't write
+    // to a dead pty.
+    let launchTimer = setTimeout(() => {
+        launchTimer = null;
+        try { term.write(launchCmd + '\r'); } catch {}
+    }, 500);
 
     term.onData(d => { if (ws.readyState === ws.OPEN) ws.send(d); });
     ws.on('message', d => term.write(d.toString()));
-    ws.on('close', () => { try { term.kill(); } catch {} });
+    ws.on('close', () => {
+        if (launchTimer) { clearTimeout(launchTimer); launchTimer = null; }
+        try { term.kill(); } catch {}
+    });
     term.onExit(() => { if (ws.readyState === ws.OPEN) ws.close(); });
 });
 

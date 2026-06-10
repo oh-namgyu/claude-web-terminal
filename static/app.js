@@ -183,6 +183,17 @@ function _fmtTokens(t) {
     return (total / 1000000).toFixed(1) + 'M';
 }
 
+// Compress an absolute cwd to a short label: collapse the user's home prefix
+// (/Users/<name> or /home/<name>) to `~`, then keep only the last two path
+// segments. Shared by the busy tooltip and the agent cards.
+function shortCwd(cwd) {
+    if (!cwd) return '';
+    return cwd
+        .replace(/^\/Users\/[^/]+/, '~')
+        .replace(/^\/home\/[^/]+/, '~')
+        .split('/').slice(-2).join('/');
+}
+
 function _createEditButton(sessionId, displayName) {
     const btn = document.createElement('button');
     btn.className = 'agent-card-edit-btn';
@@ -280,7 +291,7 @@ function _renderBusyTooltip() {
         row.appendChild(msg);
         const meta = document.createElement('div');
         meta.className = 'busy-tooltip-meta';
-        const cwdShort = s.cwd ? s.cwd.replace(/^\/Users\/[^/]+/, '~').split('/').slice(-2).join('/') : '';
+        const cwdShort = shortCwd(s.cwd);
         meta.textContent = [s.id.slice(0, 8), cwdShort, s.msgCount ? `${s.msgCount} msgs` : ''].filter(Boolean).join(' · ');
         row.appendChild(meta);
         tip.appendChild(row);
@@ -325,7 +336,7 @@ function _applyFilters() {
     });
 }
 
-// `?demo=1` 쿼리로 합성 데이터 표시 (스크린샷용). 모든 값을 명백한 placeholder로 유지.
+// `?demo=1` shows synthetic data (for screenshots). Every value is an obvious placeholder.
 const _DEMO_DATA = {
     bg: [
         { id: 'demo-001', name: '[Sample] Task A', kind: 'bg', cwd: '/path/to/demo-project', status: 'working', updatedAt: Date.now() - 4 * 60000, lastAssistant: '[demo] Latest assistant response would appear here, wrapping to two lines if it is a longer message.', lastUser: '', branch: 'demo-branch', msgCount: 18, tokens: { input: 400000, output: 12000 }, entrypoint: 'cli' },
@@ -345,14 +356,15 @@ async function loadCCSessions() {
         if (!isDemo) _checkStatusTransitions(bg);
         const resumable = isDemo ? [] : await (await fetch('/api/cc-resume-sessions')).json().catch(() => []);
 
-        // Preload metadata for all sessions
+        // Preload metadata for all sessions — fetched in parallel so a long
+        // session list doesn't serialize N round-trips.
         const allIds = [...bg.map(s => s.id), ...resumable.map(s => s.id)];
         const metadataMap = {};
-        for (const id of allIds) {
+        await Promise.all(allIds.map(async (id) => {
             try {
                 metadataMap[id] = await fetch(`/api/cc-sessions/${id}/metadata`).then(r => r.json()).catch(() => ({}));
             } catch {}
-        }
+        }));
         list.replaceChildren();
         _lastRenderedCards = [];
 
@@ -376,7 +388,7 @@ async function loadCCSessions() {
                 : s.status === 'waiting' ? '⏳'
                 : s.status === 'idle' ? '⏸'
                 : '●';
-            const cwdShort = s.cwd ? s.cwd.replace(/^\/Users\/[^/]+/, '~').replace(/^\/home\/[^/]+/, '~').split('/').slice(-2).join('/') : '';
+            const cwdShort = shortCwd(s.cwd);
             const branch = s.branch && s.branch !== 'HEAD' ? `@${s.branch}` : '';
             const idShort = (s.id || '').slice(0, 12);
 
@@ -691,21 +703,17 @@ function updateImeMode() {
     imeMode.textContent = pass ? 'slash (keys live)' : 'buffered';
 }
 
-let _prevImeValue = '';
-
-imeInput.addEventListener('input', (e) => {
+imeInput.addEventListener('input', () => {
     // Body text is always buffered — sent on Enter as a single chunk.
     // The previous design sent deltas live in passthrough mode (`/`,`@`,`#`-prefix),
     // but Hangul/IME composition could race out of bounds and corrupt the buffer.
     // Slash commands with non-ASCII args are common, so live body send is dropped.
     // Shortcut keys (arrows/Esc/Tab) still go live via keydown below.
-    _prevImeValue = imeInput.value;
     updateImeMode();
     updateSlashPalette();
 });
 
 imeInput.addEventListener('compositionend', () => {
-    _prevImeValue = imeInput.value;
     updateImeMode();
     updateSlashPalette();
 });
@@ -728,7 +736,7 @@ imeInput.addEventListener('keydown', (e) => {
         e.preventDefault();
         if (imeInput.value.length > 0) sendToActive(imeInput.value + '\r');
         else if (pass) sendToActive('\r');
-        imeInput.value = ''; _prevImeValue = ''; updateImeMode();
+        imeInput.value = ''; updateImeMode();
         hideSlashPalette();
         return;
     }
@@ -740,7 +748,7 @@ imeInput.addEventListener('keydown', (e) => {
             e.preventDefault();
             sendToActive(seq);
             if (e.key === 'Escape') {
-                imeInput.value = ''; _prevImeValue = ''; updateImeMode();
+                imeInput.value = ''; updateImeMode();
             }
         }
     }
@@ -857,7 +865,6 @@ function pickPaletteSel() {
     const it = _paletteItems[_paletteIdx];
     const rest = imeInput.value.split(/\s+/).slice(1).join(' ');
     imeInput.value = rest ? `${it.token} ${rest}` : `${it.token} `;
-    _prevImeValue = imeInput.value;
     updateImeMode();
     hideSlashPalette();
     imeInput.focus();
@@ -918,13 +925,13 @@ function updateCwdLabel() {
 
 function renderCwdMenu() {
     if (!cwdOptions.length) {
-        cwdList.innerHTML = '<div class="cwd-option" style="opacity:0.6;cursor:default">Loading…</div>';
+        cwdList.innerHTML = '<div class="cwd-option placeholder">Loading…</div>';
         return;
     }
     const q = _cwdFilter.toLowerCase();
     const filtered = q ? cwdOptions.filter(o => o.label.toLowerCase().includes(q)) : cwdOptions;
     if (!filtered.length) {
-        cwdList.innerHTML = '<div class="cwd-option" style="opacity:0.6;cursor:default">No match</div>';
+        cwdList.innerHTML = '<div class="cwd-option placeholder">No match</div>';
         return;
     }
     cwdList.innerHTML = filtered.map(o => `
@@ -992,7 +999,7 @@ document.querySelectorAll('.model-btn').forEach(btn => {
 imeSend.addEventListener('click', () => {
     if (imeInput.value.length === 0) return;
     sendToActive(imeInput.value + '\r');
-    imeInput.value = ''; _prevImeValue = ''; updateImeMode();
+    imeInput.value = ''; updateImeMode();
     imeInput.focus();
 });
 
@@ -1012,7 +1019,7 @@ imeBgSend.addEventListener('click', async () => {
         });
         const data = await r.json();
         if (!r.ok) throw new Error(data.error || 'failed');
-        imeInput.value = ''; _prevImeValue = ''; updateImeMode();
+        imeInput.value = ''; updateImeMode();
         const id = (data.id || '').slice(0, 8);
         if (('Notification' in window) && Notification.permission === 'granted' && _notifyUserEnabled()) {
             new Notification('Background session started', { body: id ? `id ${id}` : prompt.slice(0, 80), tag: `cwt-bgstart-${id || Date.now()}` });
@@ -1106,11 +1113,12 @@ document.querySelectorAll('.time-filter-btn').forEach(btn => {
     });
 });
 
-// 데모 모드일 때는 실제 PTY 안 띄움 — 터미널 영역에 placeholder만 표시 (스크린샷에 zsh 프롬프트 노출 방지)
+// Demo mode: don't spawn a real pty — show a placeholder in the terminal
+// area instead (keeps the zsh prompt out of screenshots).
 const _params = new URLSearchParams(location.search);
 if (_params.get('demo') === '1') {
     const c = document.getElementById('terminal');
-    c.innerHTML = '<div style="padding:24px;color:#8a93a6;font-family:ui-monospace,monospace;font-size:13px;line-height:1.6">' +
+    c.innerHTML = '<div class="demo-placeholder">' +
         '[demo mode]<br>' +
         '<br>' +
         'The terminal area would normally show an active <code>claude</code> REPL.<br>' +
@@ -1121,7 +1129,7 @@ if (_params.get('demo') === '1') {
     addTab();
 }
 
-// `?showAgents=1` 쿼리로 처음부터 패널 열기 (스크린샷·데모용)
+// `?showAgents=1` opens the panel on load (for screenshots / demos).
 if (_params.get('showAgents') === '1') {
     setTimeout(toggleAgentsPanel, 200);
 }
