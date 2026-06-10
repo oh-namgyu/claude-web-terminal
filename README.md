@@ -1,5 +1,7 @@
 # claude-web-terminal
 
+**[🇰🇷 한국어 README](README_KOR.md)**
+
 > A web UI for Claude Code's [Agent View](https://docs.claude.com/en/docs/claude-code/overview) — the same `claude agents` functionality you'd run in a terminal (list, create, attach, stop background sessions) but rendered as cards in your browser, with richer metadata (last assistant reply, token totals, branch, message count) than the CLI TUI shows.
 
 ![status](https://img.shields.io/badge/node-18%2B-green) ![status](https://img.shields.io/badge/license-MIT-blue)
