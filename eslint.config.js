@@ -33,11 +33,37 @@ module.exports = [
         languageOptions: {
             ecmaVersion: 2024,
             sourceType: 'script',
-            globals: { ...globals.browser, Terminal: 'readonly', FitAddon: 'readonly' },
+            // The frontend is split into ordered classic <script> modules under
+            // static/js/ (see index.html). Top-level declarations share one
+            // global lexical scope across those files at runtime, but eslint
+            // lints each file in isolation — so symbols defined in one module
+            // and referenced in another are declared here as shared globals.
+            globals: {
+                ...globals.browser, Terminal: 'readonly', FitAddon: 'readonly',
+                tabs: 'writable', activeIdx: 'writable', renderTabs: 'writable',
+                addTab: 'writable', closeTab: 'writable', activateTab: 'writable',
+                connectTab: 'writable', currentCwd: 'writable',
+                imeInput: 'writable', imeSend: 'writable', sendToActive: 'writable',
+                updateImeMode: 'writable', updateSlashPalette: 'writable',
+                slashPaletteOpen: 'writable', movePaletteSel: 'writable',
+                pickPaletteSel: 'writable', hideSlashPalette: 'writable',
+                loadCCSessions: 'writable', _applyFilters: 'writable',
+                _activeDays: 'writable', toggleAgentsPanel: 'writable',
+                openEditModal: 'writable', _notifyUserEnabled: 'writable',
+                loadCwdOptions: 'writable', loadSlashCommands: 'writable',
+                openSessionInNewTab: 'writable', openSessionInCurrentTab: 'writable',
+                stopSession: 'writable', togglePinSession: 'writable',
+                shortCwd: 'writable', _lastRenderedCards: 'writable',
+                _checkStatusTransitions: 'writable',
+            },
         },
         rules: {
             'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
             'no-empty': ['error', { allowEmptyCatch: true }],
+            // Symbols are declared in their home module and also listed as
+            // shared globals above so cross-module references lint clean; the
+            // overlap is intentional, not an accidental redeclaration.
+            'no-redeclare': 'off',
         },
     },
     {
