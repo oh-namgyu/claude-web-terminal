@@ -30,9 +30,9 @@
     "agent-view"
   ],
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
-    "eslint": "^9.39.4",
-    "globals": "^15.15.0"
+    "eslint": "^10.5.0",
+    "globals": "^17.6.0"
   }
 }
