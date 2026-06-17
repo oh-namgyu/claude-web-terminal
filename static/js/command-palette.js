@@ -14,7 +14,6 @@ let _slashCommandsCache = null;
 let _slashCommandsFetched = 0;
 let _paletteItems = [];
 let _paletteIdx = -1;
-let _paletteMode = null;
 let _atFetchAbort = null;
 
 async function loadSlashCommands() {
@@ -48,7 +47,6 @@ function hideSlashPalette() {
     slashPalette.classList.add('hidden');
     _paletteItems = [];
     _paletteIdx = -1;
-    _paletteMode = null;
 }
 
 function escHtml(s) {
@@ -63,7 +61,6 @@ async function updateSlashPalette() {
 }
 
 async function renderSlashMode(v) {
-    _paletteMode = 'slash';
     const cmds = await loadSlashCommands();
     if (!cmds) { hideSlashPalette(); return; }
     const firstToken = v.split(/\s+/)[0].slice(1).toLowerCase();
@@ -77,7 +74,6 @@ async function renderSlashMode(v) {
 }
 
 async function renderAtMode(v) {
-    _paletteMode = 'at';
     const cwd = currentCwd || (cwdOptions[0] && cwdOptions[0].path) || '';
     if (!cwd) { hideSlashPalette(); return; }
     const q = v.split(/\s+/)[0].slice(1);
