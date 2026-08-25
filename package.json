@@ -1,6 +1,6 @@
 {
   "name": "claude-web-terminal",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A minimal web terminal for Claude Code with Agent View — list, create, attach and stop background sessions from your browser.",
   "main": "server.js",
   "scripts": {
