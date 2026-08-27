@@ -54,7 +54,8 @@ module.exports = [
                 openSessionInNewTab: 'writable', openSessionInCurrentTab: 'writable',
                 stopSession: 'writable', togglePinSession: 'writable',
                 shortCwd: 'writable', _lastRenderedCards: 'writable',
-                _checkStatusTransitions: 'writable',
+                _checkStatusTransitions: 'writable', _fmtAgo: 'writable',
+                toggleResumePanel: 'writable', loadResumeSessions: 'writable',
             },
         },
         rules: {
