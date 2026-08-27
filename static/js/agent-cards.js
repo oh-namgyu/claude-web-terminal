@@ -68,20 +68,20 @@ const _DEMO_DATA = {
     ],
 };
 
-// Fetch the three session lists. Returns { bg, interactive, resumable }.
+// Fetch the live session lists. Past (resumable) sessions are NOT here — they
+// live in the 📂 local session browser (js/resume-panel.js), which reads
+// /api/cc/resume-sessions. This panel only shows what is running right now.
 async function _fetchSessionData(isDemo) {
     const { bg = [], interactive = [] } = isDemo ? _DEMO_DATA : await (await fetch('/api/cc-sessions')).json();
     if (!isDemo) _checkStatusTransitions(bg);
-    const resumable = isDemo ? [] : await (await fetch('/api/cc-resume-sessions')).json().catch(() => []);
-    return { bg, interactive, resumable };
+    return { bg, interactive };
 }
 
-// Preload metadata for all sessions — fetched in parallel so a long
+// Preload metadata for the background sessions — fetched in parallel so a long
 // session list doesn't serialize N round-trips.
-async function _buildMetadataMap(bg, resumable) {
-    const allIds = [...bg.map(s => s.id), ...resumable.map(s => s.id)];
+async function _buildMetadataMap(bg) {
     const metadataMap = {};
-    await Promise.all(allIds.map(async (id) => {
+    await Promise.all(bg.map(async ({ id }) => {
         try {
             metadataMap[id] = await fetch(`/api/cc-sessions/${id}/metadata`).then(r => r.json()).catch(() => ({}));
         } catch {}
@@ -100,13 +100,14 @@ function _renderEmptyState(list) {
         ' above to create a background session, or run ',
         Object.assign(document.createElement('code'), { textContent: 'claude --bg "<task>"' }),
         ' in any terminal.',
+        document.createElement('br'), document.createElement('br'),
+        'Past sessions live in the 📂 local session browser.',
     );
     list.appendChild(empty);
 }
 
-// Shared card scaffold for both attachable and resumable cards: builds the
-// outer card element (class + dataset + tracking), the name row, and the
-// optional last-assistant preview. Callers append their own meta/actions.
+// Card scaffold: the outer element (class + dataset + tracking), the name row,
+// and the optional last-assistant preview. The caller appends meta/actions.
 function _buildCardBase(s, extraClass, displayText, displayName, metadataMap) {
     const card = document.createElement('div');
     const isPinned = metadataMap[s.id]?.pinned === true;
@@ -127,24 +128,14 @@ function _buildCardBase(s, extraClass, displayText, displayName, metadataMap) {
     return { card, isPinned };
 }
 
-function _renderCard(s, attachable, metadataMap) {
-    const status = s.status === 'busy' ? '⚙️'
-        : s.status === 'waiting' ? '⏳'
-        : s.status === 'idle' ? '⏸'
-        : '●';
+function _renderCardMeta(s) {
     const cwdShort = shortCwd(s.cwd);
     const branch = s.branch && s.branch !== 'HEAD' ? `@${s.branch}` : '';
-    const idShort = (s.id || '').slice(0, 12);
-
-    const displayName = metadataMap[s.id]?.name || s.name;
-    const { card, isPinned } = _buildCardBase(s, attachable ? '' : ' interactive',
-        `${status} ${displayName}`, displayName, metadataMap);
-
     const meta = document.createElement('div');
     meta.className = 'agent-card-meta';
     const idSpan = document.createElement('span');
     idSpan.className = 'agent-card-id';
-    idSpan.textContent = idShort;
+    idSpan.textContent = (s.id || '').slice(0, 12);
     meta.appendChild(idSpan);
     if (cwdShort) {
         meta.append(' · ');
@@ -157,7 +148,18 @@ function _renderCard(s, attachable, metadataMap) {
     if (s.tokens) meta.append(` · ${_fmtTokens(s.tokens)}`);
     if (s.updatedAt) meta.append(` · ${_fmtAgo(s.updatedAt)}`);
     if (s.entrypoint) meta.append(` · ${s.entrypoint}`);
-    card.appendChild(meta);
+    return meta;
+}
+
+function _renderCard(s, attachable, metadataMap) {
+    const status = s.status === 'busy' ? '⚙️'
+        : s.status === 'waiting' ? '⏳'
+        : s.status === 'idle' ? '⏸'
+        : '●';
+    const displayName = metadataMap[s.id]?.name || s.name;
+    const { card, isPinned } = _buildCardBase(s, attachable ? '' : ' interactive',
+        `${status} ${displayName}`, displayName, metadataMap);
+    card.appendChild(_renderCardMeta(s));
 
     if (attachable) {
         const actions = document.createElement('div');
@@ -196,56 +198,12 @@ function _renderSection(list, title, items, attachable, metadataMap) {
     list.appendChild(section);
 }
 
-function _renderResumableCard(s, metadataMap) {
-    const idShort = (s.id || '').slice(0, 12);
-    const branch = s.branch && s.branch !== 'HEAD' ? `@${s.branch}` : '';
-
-    const displayName = metadataMap[s.id]?.name || `📌 ${idShort}`;
-    const { card, isPinned } = _buildCardBase(s, ' resumable', displayName, displayName, metadataMap);
-
-    const meta = document.createElement('div');
-    meta.className = 'agent-card-meta';
-    if (branch) meta.append(branch + ' · ');
-    if (s.msgCount) meta.append(`${s.msgCount} msgs · `);
-    if (s.tokens) meta.append(`${_fmtTokens(s.tokens)} · `);
-    if (s.updatedAt) meta.append(_fmtAgo(s.updatedAt));
-    if (meta.textContent.endsWith(' · ')) {
-        meta.textContent = meta.textContent.slice(0, -3);
-    }
-    card.appendChild(meta);
-
-    const actions = document.createElement('div');
-    actions.className = 'agent-card-actions';
-    const openBtn = document.createElement('button');
-    openBtn.textContent = '↪️ resume';
-    openBtn.addEventListener('click', (e) => { e.stopPropagation(); addTab({ resumeId: s.id, resumeCwd: s.cwd }); });
-    actions.append(_createPinButton(s.id, isPinned), openBtn);
-    card.appendChild(actions);
-
-    card.addEventListener('click', () => {
-        addTab({ resumeId: s.id, resumeCwd: s.cwd });
-    });
-    return card;
-}
-
-function _renderResumableSection(list, resumable, metadataMap) {
-    if (resumable.length === 0) return;
-    const section = document.createElement('div');
-    section.className = 'agents-section';
-    const t = document.createElement('div');
-    t.className = 'agents-section-title';
-    t.textContent = '📌 Past Sessions (resumable)';
-    section.appendChild(t);
-    _sortByPinned(resumable, metadataMap).forEach(s => section.appendChild(_renderResumableCard(s, metadataMap)));
-    list.appendChild(section);
-}
-
 async function loadCCSessions() {
     const list = document.getElementById('agentsList');
     try {
         const isDemo = new URLSearchParams(location.search).get('demo') === '1';
-        const { bg, interactive, resumable } = await _fetchSessionData(isDemo);
-        const metadataMap = await _buildMetadataMap(bg, resumable);
+        const { bg, interactive } = await _fetchSessionData(isDemo);
+        const metadataMap = await _buildMetadataMap(bg);
         list.replaceChildren();
         _lastRenderedCards = [];
 
@@ -255,7 +213,6 @@ async function loadCCSessions() {
         }
         _renderSection(list, '⚡ Background (attachable)', bg, true, metadataMap);
         _renderSection(list, '💬 Interactive (read-only)', interactive, false, metadataMap);
-        _renderResumableSection(list, resumable, metadataMap);
         _applyFilters();
     } catch (e) {
         list.replaceChildren(

@@ -73,6 +73,33 @@ test.describe("Resume API", () => {
   });
 });
 
+// The Agent View panel used to carry its own "Past Sessions (resumable)"
+// section backed by /api/cc-resume-sessions. Both are gone: the local session
+// browser below is the only place past sessions are listed. These two tests
+// are the old section's coverage, pointed at its replacement.
+test.describe("Consolidated resume listing", () => {
+  test("the superseded /api/cc-resume-sessions route is gone", async ({ request }) => {
+    const res = await request.get(`${RESUME_BASE_URL}/api/cc-resume-sessions`, {
+      headers: { cookie: COOKIE },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test("past sessions are listed only by the session browser, not the Agent panel", async ({ page }) => {
+    await openApp(page);
+    await page.locator("#agentsBtn").click();
+    await expect(page.locator("#agentsPanel")).toHaveClass(/open/);
+    // Whatever the Agent panel shows, it is never a past session.
+    await expect(page.locator("#agentsList")).not.toContainText("Past Sessions");
+    await expect(page.locator("#agentsList .agent-card")).toHaveCount(0);
+
+    // Opening the browser closes the Agent panel — they share the slot.
+    await page.locator("#resumeBtn").click();
+    await expect(page.locator("#agentsPanel")).not.toHaveClass(/open/);
+    await expect(page.locator("#resumeList .agent-card")).toHaveCount(EXPECTED_SESSION_COUNT);
+  });
+});
+
 test.describe("Resume picker UI", () => {
   test("panel lists the sessions and resuming runs claude --resume in the recorded cwd", async ({ page }) => {
     test.skip(!HAS_ZSH, "the pty needs /bin/zsh");
