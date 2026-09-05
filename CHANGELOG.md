@@ -21,6 +21,19 @@ All notable changes to claude-web-terminal.
 - **`SECURITY.md`** — private reporting via GitHub Security Advisories with an explicit threat model and in-scope list.
 - **e2e security spec** (`e2e/security.spec.ts`) — 14 regression cases covering Origin gate, metadata schema, session-id validation, WS auth, rate-limit burst, resume-cwd containment. Full suite: 20/20 passing.
 
+## [0.7.2](https://github.com/oh-namgyu/claude-web-terminal/compare/v0.7.1...v0.7.2) (2026-09-05)
+
+
+### Documentation
+
+* add Korean summary at the top of README ([c8882ca](https://github.com/oh-namgyu/claude-web-terminal/commit/c8882caec00deb3cd465745de16109e8e18bd89e))
+* standardize README header and License section ([0501fc0](https://github.com/oh-namgyu/claude-web-terminal/commit/0501fc0de76734598f5758ed44036cd183bd7ef4))
+
+
+### Build System
+
+* **deps-dev:** bump the dev group with 3 updates ([#19](https://github.com/oh-namgyu/claude-web-terminal/issues/19)) ([d5adc06](https://github.com/oh-namgyu/claude-web-terminal/commit/d5adc06132dfca8d86e57663ad96bb1a2f18f18a))
+
 ## [0.7.1](https://github.com/oh-namgyu/claude-web-terminal/compare/v0.7.0...v0.7.1) (2026-08-25)
 
 
