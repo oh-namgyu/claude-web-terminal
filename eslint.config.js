@@ -29,6 +29,20 @@ module.exports = [
         },
     },
     {
+        // The Telegram launcher is a standalone ESM entry point (Node ≥22
+        // built-ins only); its testable core next door stays CommonJS so the
+        // Playwright specs can import it the same way they import lib/.
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 2024, sourceType: 'module',
+            globals: { ...globals.node },
+        },
+        rules: {
+            'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+            'no-empty': ['error', { allowEmptyCatch: true }],
+        },
+    },
+    {
         files: ['static/**/*.js'],
         languageOptions: {
             ecmaVersion: 2024,
@@ -54,7 +68,8 @@ module.exports = [
                 openSessionInNewTab: 'writable', openSessionInCurrentTab: 'writable',
                 stopSession: 'writable', togglePinSession: 'writable',
                 shortCwd: 'writable', _lastRenderedCards: 'writable',
-                _checkStatusTransitions: 'writable',
+                _checkStatusTransitions: 'writable', _fmtAgo: 'writable',
+                toggleResumePanel: 'writable', loadResumeSessions: 'writable',
             },
         },
         rules: {

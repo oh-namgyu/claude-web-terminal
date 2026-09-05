@@ -36,9 +36,8 @@ function addTab(opts) {
     const tab = { id: nextTabId++, term: null, ws: null, fitAddon: null,
                    attachId: (opts && opts.attachId) || null,
                    resumeId: (opts && opts.resumeId) || null,
-                   resumeCwd: (opts && opts.resumeCwd) || null,
                    newCwd,
-                   cwd: (opts && opts.resumeCwd) || newCwd || null };
+                   cwd: newCwd || null };
     tabs.push(tab);
     activeIdx = tabs.length - 1;
     renderTabs();
@@ -83,11 +82,10 @@ function activateTab(id) {
 
 function _wsQueryFor(tab) {
     if (tab.attachId) return `?attach=${encodeURIComponent(tab.attachId)}`;
-    if (tab.resumeId) {
-        let q = `?resume=${encodeURIComponent(tab.resumeId)}`;
-        if (tab.resumeCwd) q += `&cwd=${encodeURIComponent(tab.resumeCwd)}`;
-        return q;
-    }
+    // Resume sends the id and nothing else: the server re-reads the session
+    // from disk and decides the working directory itself, so a cwd from the
+    // client would be ignored anyway.
+    if (tab.resumeId) return `?resume=${encodeURIComponent(tab.resumeId)}`;
     if (tab.newCwd) return `?cwd=${encodeURIComponent(tab.newCwd)}`;
     return '';
 }

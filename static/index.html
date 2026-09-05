@@ -12,6 +12,9 @@
 <div class="layout">
   <aside class="sidebar">
     <button class="sidebar-btn" id="agentsBtn" title="Claude Agents">🤖</button>
+    <!-- Revealed by js/resume-panel.js once the server confirms the local
+         session browser is enabled (RESUME_BROWSER=0 leaves it hidden). -->
+    <button class="sidebar-btn" id="resumeBtn" title="Local sessions (resume)" hidden>📂</button>
     <button class="sidebar-btn notify-off" id="agentsNotifyBtn" title="Enable idle notifications">🔔</button>
     <button class="sidebar-btn" id="agentsHelpBtn" title="Keyboard shortcuts">⌨️</button>
   </aside>
@@ -44,6 +47,18 @@
       </div>
     </div>
     <div class="agents-list" id="agentsList">
+      <div class="agents-empty">Loading…</div>
+    </div>
+  </div>
+
+  <div class="agents-panel" id="resumePanel">
+    <div class="agents-panel-header">
+      <span>Local Sessions</span>
+      <div class="agents-header-actions">
+        <button class="agents-btn-icon" id="resumeRefreshBtn" title="Refresh">🔄</button>
+      </div>
+    </div>
+    <div class="agents-list" id="resumeList">
       <div class="agents-empty">Loading…</div>
     </div>
   </div>
@@ -133,6 +148,7 @@
 <script src="js/tabs.js"></script>
 <script src="js/agent-cards.js"></script>
 <script src="js/agent-panel.js"></script>
+<script src="js/resume-panel.js"></script>
 <script src="js/command-palette.js"></script>
 <script src="js/ime.js"></script>
 <script src="js/boot.js"></script>

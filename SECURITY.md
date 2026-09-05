@@ -18,7 +18,7 @@ I'll acknowledge within 7 days and aim for a fix within 30 days for confirmed is
 
 The threat model **excludes**:
 
-- Multi-tenant exposure. Anyone who holds the auth cookie can read every Claude transcript on the machine (`/api/cc-resume-sessions` returns full preview text), spawn shells, and stop running sessions. Do not change `HOST` away from loopback on a shared network — see [README → Security model](README.md#security-model).
+- Multi-tenant exposure. Anyone who holds the auth cookie can read every Claude transcript on the machine (`/api/cc/resume-sessions` returns the last prompt of each past session; `RESUME_PREVIEW=0` blanks that text and `RESUME_BROWSER=0` removes the endpoint), spawn shells, and stop running sessions. Do not change `HOST` away from loopback on a shared network — see [README → Security model](README.md#security-model).
 - Defense against an attacker with physical or root access to the host running the server. Once they read the token cookie or environment, the game is over.
 - A sandboxed `claude` subprocess. By design the server hands the user a real shell.
 

@@ -31,6 +31,9 @@ body {
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px;
 }
+/* `display: flex` above outranks the browser's [hidden] rule, so buttons
+   revealed at runtime (see js/resume-panel.js) need it restated. */
+.sidebar-btn[hidden] { display: none; }
 .sidebar-btn:hover { background: #16213e; border-color: var(--border); }
 .sidebar-btn.active {
   background: rgba(79, 195, 247, 0.18);
