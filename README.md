@@ -1,12 +1,14 @@
 # claude-web-terminal
 
+[![CI](https://github.com/oh-namgyu/claude-web-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/oh-namgyu/claude-web-terminal/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![status](https://img.shields.io/badge/node-18%2B-green)
+
 > **한글 요약** — 브라우저에서 Claude Code를 쓰는 셀프호스트 웹 터미널입니다. 백그라운드 세션의 목록·생성·접속·중지(Agent View)와, 이 PC에 남아 있는 과거 세션을 골라 이어서 여는 로컬 세션 브라우저를 지원합니다. 폰에서 내 텔레그램 봇에 키워드를 보내 PC 쪽 `claude remote-control` 세션을 띄워 두면, 나중에 책상 앞에서 그 대화를 웹 터미널에서 그대로 이어받을 수 있습니다. *(전체 한국어 문서: [README_KOR.md](README_KOR.md))*
 
 **[🇰🇷 한국어 README](README_KOR.md)**
 
 > A web UI for Claude Code's [Agent View](https://docs.claude.com/en/docs/claude-code/overview) — the same `claude agents` functionality you'd run in a terminal (list, create, attach, stop background sessions) but rendered as cards in your browser, with richer metadata (last assistant reply, token totals, branch, message count) than the CLI TUI shows.
-
-![status](https://img.shields.io/badge/node-18%2B-green) ![status](https://img.shields.io/badge/license-MIT-blue)
 
 ![Agent View panel](docs/screenshot.png)
 
@@ -390,4 +392,4 @@ including what evidence to record.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Security policy: [SECURITY.md](SECURITY.md).
