@@ -21,6 +21,33 @@ All notable changes to claude-web-terminal.
 - **`SECURITY.md`** — private reporting via GitHub Security Advisories with an explicit threat model and in-scope list.
 - **e2e security spec** (`e2e/security.spec.ts`) — 14 regression cases covering Origin gate, metadata schema, session-id validation, WS auth, rate-limit burst, resume-cwd containment. Full suite: 20/20 passing.
 
+## [0.8.0](https://github.com/oh-namgyu/claude-web-terminal/compare/v0.7.1...v0.8.0) (2026-09-28)
+
+
+### Features
+
+* session browser, resume support and Telegram launcher ([#14](https://github.com/oh-namgyu/claude-web-terminal/issues/14)) ([8dbc775](https://github.com/oh-namgyu/claude-web-terminal/commit/8dbc77540998775cdfc5874b1263b4faebc6781d))
+
+
+### Documentation
+
+* add Korean summary at the top of README ([c8882ca](https://github.com/oh-namgyu/claude-web-terminal/commit/c8882caec00deb3cd465745de16109e8e18bd89e))
+* standardize README header and License section ([0501fc0](https://github.com/oh-namgyu/claude-web-terminal/commit/0501fc0de76734598f5758ed44036cd183bd7ef4))
+
+
+### Build System
+
+* **deps-dev:** bump eslint from 10.10.0 to 10.11.0 in the dev group ([#24](https://github.com/oh-namgyu/claude-web-terminal/issues/24)) ([5ccd602](https://github.com/oh-namgyu/claude-web-terminal/commit/5ccd602cfd024660fa782ad9a70cf5961cce4dd8))
+* **deps-dev:** bump globals from 17.11.0 to 17.12.0 in the dev group ([#21](https://github.com/oh-namgyu/claude-web-terminal/issues/21)) ([dfe1159](https://github.com/oh-namgyu/claude-web-terminal/commit/dfe11594b522b75c66babefac09ba146dc3e36a0))
+* **deps-dev:** bump the dev group with 2 updates ([#22](https://github.com/oh-namgyu/claude-web-terminal/issues/22)) ([b2539d7](https://github.com/oh-namgyu/claude-web-terminal/commit/b2539d7360ab4b089d805ff8f19eea029d7f0bf3))
+* **deps-dev:** bump the dev group with 3 updates ([#19](https://github.com/oh-namgyu/claude-web-terminal/issues/19)) ([d5adc06](https://github.com/oh-namgyu/claude-web-terminal/commit/d5adc06132dfca8d86e57663ad96bb1a2f18f18a))
+* **deps:** bump actions/checkout from 6 to 7 ([#16](https://github.com/oh-namgyu/claude-web-terminal/issues/16)) ([f6f1ec4](https://github.com/oh-namgyu/claude-web-terminal/commit/f6f1ec40737e46cd60b1ee2a6470acb8df54e11a))
+* **deps:** bump actions/setup-node from 6 to 7 ([#15](https://github.com/oh-namgyu/claude-web-terminal/issues/15)) ([1dfe4ea](https://github.com/oh-namgyu/claude-web-terminal/commit/1dfe4eaa4c4b20c6d23527970f372c50f25175c8))
+* **deps:** bump dependabot/fetch-metadata from 2 to 3 ([#17](https://github.com/oh-namgyu/claude-web-terminal/issues/17)) ([259ccf5](https://github.com/oh-namgyu/claude-web-terminal/commit/259ccf57f14c7a3f49a233fd3e5b2658cf521aca))
+* **deps:** bump docker/build-push-action from 6 to 7 ([#20](https://github.com/oh-namgyu/claude-web-terminal/issues/20)) ([ba0d131](https://github.com/oh-namgyu/claude-web-terminal/commit/ba0d13198c7ee22ad57248afcc1f7357ddcf31a5))
+* **deps:** bump docker/metadata-action from 5 to 6 ([#18](https://github.com/oh-namgyu/claude-web-terminal/issues/18)) ([946dd6b](https://github.com/oh-namgyu/claude-web-terminal/commit/946dd6b163293952d5f134984affac23642b19cb))
+* **deps:** bump dotenv from 17.4.2 to 18.0.3 in the production group ([#23](https://github.com/oh-namgyu/claude-web-terminal/issues/23)) ([191d244](https://github.com/oh-namgyu/claude-web-terminal/commit/191d244c55aa01b51df51e53b0b271bd42f1a2e7))
+
 ## [0.7.1](https://github.com/oh-namgyu/claude-web-terminal/compare/v0.7.0...v0.7.1) (2026-08-25)
 
 
