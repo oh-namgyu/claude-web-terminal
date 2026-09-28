@@ -30,6 +30,18 @@ jobs:
       - name: Install Playwright browser (chromium only)
         run: npx playwright install --with-deps chromium
 
+      # lib/ws.js spawns /bin/zsh for every terminal, and the ubuntu runner
+      # image does not ship zsh (checked against the Ubuntu 24.04 software
+      # manifest — bash and dash only). Without it the terminal-output specs
+      # skip themselves and CI goes green having tested nothing. `test -x`
+      # afterwards turns a future image change into a loud failure.
+      - name: Install zsh (required by the pty)
+        run: |
+          if [ ! -x /bin/zsh ]; then
+            sudo apt-get update && sudo apt-get install -y zsh
+          fi
+          test -x /bin/zsh
+
       - name: Run e2e tests
         run: npm run test:e2e
         env:
