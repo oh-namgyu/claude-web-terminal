@@ -91,6 +91,13 @@ test.describe("update → action", () => {
     expect(action).toEqual({ type: "ignore", reason: "chat-not-allowed", chatId: 9999 });
   });
 
+  test("an allowlisted group chat is ignored — only private chats may drive the launcher", () => {
+    const group = { update_id: 1, message: { chat: { id: 4242, type: "group" }, from: { id: 7 }, text: "blog" } };
+    expect(decideAction(group, ctx())).toEqual({ type: "ignore", reason: "non-private-chat", chatId: 4242 });
+    const dm = { update_id: 2, message: { chat: { id: 4242, type: "private" }, text: "blog" } };
+    expect(decideAction(dm, ctx()).type).toBe("spawn");
+  });
+
   test("non-text updates are ignored", () => {
     expect(decideAction({ update_id: 1 }, ctx()).type).toBe("ignore");
     expect(decideAction({ update_id: 1, message: { chat: { id: 4242 } } }, ctx()).type).toBe("ignore");

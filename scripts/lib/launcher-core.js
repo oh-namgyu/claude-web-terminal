@@ -141,6 +141,8 @@ function decideAction(update, ctx) {
     const text = msg && typeof msg.text === 'string' ? msg.text : null;
     if (chatId === null || text === null) return { type: 'ignore', reason: 'no-text-message' };
     if (!ctx.allowedChatIds.includes(chatId)) return { type: 'ignore', reason: 'chat-not-allowed', chatId };
+    // In a group every member could drive the launcher; only a private chat identifies one person.
+    if (chat.type !== undefined && chat.type !== 'private') return { type: 'ignore', reason: 'non-private-chat', chatId };
 
     const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const [head, arg] = words;

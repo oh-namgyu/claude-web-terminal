@@ -234,6 +234,7 @@ async function main() {
         return;
     }
     fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+    fs.chmodSync(STATE_DIR, 0o700); // mkdir's mode is ignored for a pre-existing dir; logs may hold session URLs
     const config = loadConfig();
 
     const lock = acquireLock({

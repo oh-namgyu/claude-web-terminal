@@ -268,7 +268,7 @@ node scripts/telegram-launcher.mjs
 ```
 
 - **`botToken`** — from [@BotFather](https://t.me/botfather). Create your own bot; the launcher only ever talks to that one.
-- **`allowedChatIds`** — the numeric chat ids allowed to command it. Anything from any other chat is dropped without a reply, so a stranger who finds your bot learns nothing. Send a message to your bot and read the id from `getUpdates`, or ask any id-echo bot.
+- **`allowedChatIds`** — the numeric chat ids allowed to command it. Anything from any other chat is dropped without a reply, so a stranger who finds your bot learns nothing. Only **private** chats are honored — a group chat is ignored even if its id is listed, since any member could otherwise start or stop sessions. Send a message to your bot and read the id from `getUpdates`, or ask any id-echo bot.
 - **`keywords`** — keyword → directory. `~` is expanded; a directory that doesn't exist is a startup error, not a runtime surprise.
 
 What the bot understands:

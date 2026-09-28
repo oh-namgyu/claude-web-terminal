@@ -45,6 +45,14 @@ test.afterEach(() => {
 });
 
 test.describe("listResumeSessions — discovery", () => {
+  test("a listing reads at most maxScan transcripts, however many are unusable", () => {
+    write(`${ID_A}.jsonl`, ["{not json"], 1);
+    write(`${ID_B}.jsonl`, ["{not json"], 2);
+    write(`${ID_C}.jsonl`, [rec("user", ID_C, "only usable one")], 3);
+    expect(listResumeSessions(claudeDir, { maxScan: 2 })).toHaveLength(0);
+    expect(listResumeSessions(claudeDir, { maxScan: 3 })).toHaveLength(1);
+  });
+
   test("valid transcript is listed, with cwd read from the record", () => {
     write(`${ID_A}.jsonl`, [
       rec("user", ID_A, "first question"),
