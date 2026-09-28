@@ -21,6 +21,13 @@ All notable changes to claude-web-terminal.
 - **`SECURITY.md`** — private reporting via GitHub Security Advisories with an explicit threat model and in-scope list.
 - **e2e security spec** (`e2e/security.spec.ts`) — 14 regression cases covering Origin gate, metadata schema, session-id validation, WS auth, rate-limit burst, resume-cwd containment. Full suite: 20/20 passing.
 
+## [0.8.1](https://github.com/oh-namgyu/claude-web-terminal/compare/v0.8.0...v0.8.1) (2026-09-28)
+
+
+### Continuous Integration
+
+* build the versioned image when release-please cuts a release ([b68083e](https://github.com/oh-namgyu/claude-web-terminal/commit/b68083ea6839b65bdebf1fa7f4b631af77b3954e))
+
 ## [0.8.0](https://github.com/oh-namgyu/claude-web-terminal/compare/v0.7.1...v0.8.0) (2026-09-28)
 
 
