@@ -14,6 +14,8 @@ const ROOT = path.join(fs.realpathSync(os.tmpdir()), "cwt-resume-e2e");
 
 export const FIXTURE_HOME = path.join(ROOT, "home");
 export const FIXTURE_BIN = path.join(ROOT, "bin");
+// Every e2e server gets this as CLAUDE_BIN (see playwright.config.ts).
+export const FAKE_CLAUDE = path.join(FIXTURE_BIN, "claude");
 export const FIXTURE_OUTSIDE = path.join(ROOT, "outside");
 export const PROJECT_NAME = "resume-project-a";
 export const PROJECT_DIR = path.join(FIXTURE_HOME, "work", PROJECT_NAME);
@@ -54,7 +56,7 @@ function writeFakeClaude() {
     fs.mkdirSync(FIXTURE_BIN, { recursive: true });
     const script = [
         "#!/bin/sh",
-        "# Fake `claude` for the resume e2e specs: echo the argv and cwd the",
+        "# Fake `claude` for the e2e servers: echo the argv and cwd the",
         "# server chose, then exit. Never contacts anything.",
         'echo "FAKE-CLAUDE ARGV: $*"',
         'echo "FAKE-CLAUDE CWD: $PWD"',
@@ -65,9 +67,8 @@ function writeFakeClaude() {
         "exit 0",
         "",
     ].join("\n");
-    const file = path.join(FIXTURE_BIN, "claude");
-    fs.writeFileSync(file, script);
-    fs.chmodSync(file, 0o755);
+    fs.writeFileSync(FAKE_CLAUDE, script);
+    fs.chmodSync(FAKE_CLAUDE, 0o755);
 }
 
 export function buildResumeFixtures() {

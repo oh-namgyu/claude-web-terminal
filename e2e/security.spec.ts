@@ -107,8 +107,8 @@ test.describe("WebSocket auth", () => {
 
 test.describe("Session-create rate limit", () => {
   // playwright.config.ts pins RATE_LIMIT_PER_MIN=5 for the test server, so a
-  // burst of 8 must yield at least one 429. Keeping the burst small avoids
-  // spinning up 30+ real claude subprocesses during CI.
+  // burst of 8 must yield at least one 429. The calls under the cap run the
+  // fake claude from e2e/resume-fixtures.ts, never the real CLI.
   test("burst past the cap yields 429", async ({ request }) => {
     const headers = { cookie: COOKIE, origin: BASE_URL, "content-type": "application/json" };
     let saw429 = false;

@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { buildResumeFixtures, FIXTURE_HOME, FIXTURE_BIN } from "./e2e/resume-fixtures";
+import { buildResumeFixtures, FIXTURE_HOME, FAKE_CLAUDE } from "./e2e/resume-fixtures";
 
 const PORT = 8765;
 const HOST = "127.0.0.1";
@@ -17,13 +17,14 @@ const RESUME_DISABLED_BASE_URL = `http://${HOST}:${RESUME_DISABLED_PORT}`;
 // Built at config load, i.e. before any of the servers below start.
 buildResumeFixtures();
 
-// The fixture bin dir goes first on PATH so the pty picks up the fake
-// `claude` instead of a real one that may be installed on the machine.
-const resumeServerEnv = {
-    HOST, AUTH_TOKEN, LOG_LEVEL: "warn",
-    HOME: FIXTURE_HOME,
-    PATH: `${FIXTURE_BIN}:${process.env.PATH || ""}`,
-};
+// No spec may launch the real Claude Code CLI: the rate-limit spec POSTs
+// /api/cc-sessions, which would start real background sessions on a machine
+// whose cwd is trusted, and the outcome would depend on the host's install,
+// login and trust state. CLAUDE_BIN overrides the server's `which claude`,
+// and lib/config.js puts its directory first on the pty's PATH, so the pty
+// picks up the fake too.
+const serverEnv = { HOST, AUTH_TOKEN, LOG_LEVEL: "warn", CLAUDE_BIN: FAKE_CLAUDE };
+const resumeServerEnv = { ...serverEnv, HOME: FIXTURE_HOME };
 
 export default defineConfig({
   testDir: "./e2e",
@@ -40,7 +41,7 @@ export default defineConfig({
       url: BASE_URL,
       timeout: 60_000,
       reuseExistingServer: false,
-      env: { PORT: String(PORT), HOST, AUTH_TOKEN, RATE_LIMIT_PER_MIN: "5", LOG_LEVEL: "warn" },
+      env: { ...serverEnv, PORT: String(PORT), RATE_LIMIT_PER_MIN: "5" },
     },
     {
       command: "node server.js",
