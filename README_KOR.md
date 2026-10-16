@@ -48,7 +48,7 @@ Claude Code 의 백그라운드 에이전트 세션을 터미널 TUI 로 관리�
 
 ## 기술 스택
 
-Node.js 18+ · Express · WebSocket · PTY · MIT
+Node.js 22+ · Express · WebSocket · PTY · MIT
 
 ## 이 프로젝트의 핵심 포인트
 
