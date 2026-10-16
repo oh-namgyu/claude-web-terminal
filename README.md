@@ -166,8 +166,10 @@ cc-resume 71fc583c        # prefix is enough if unambiguous
 ## Testing
 
 ```bash
-npm run test:e2e          # Playwright Chromium — 59 tests (servers auto-spawn)
+npm test                  # installs the matching Chromium if missing, then runs the e2e suite
+npm run test:e2e          # Playwright Chromium — 61 tests (servers auto-spawn)
 npm run test:e2e:headed   # show browser
+npm run lint              # ESLint; there is no build step (plain Node, no bundler)
 ```
 
 | Spec | Covers |
@@ -178,11 +180,26 @@ npm run test:e2e:headed   # show browser
 | `resume-browser.spec.ts` | The session browser end to end against a fixture `~/.claude` and a fake `claude` on `PATH`: listing, resume spawn, cwd containment, `RESUME_BROWSER=0` |
 | `telegram-launcher.spec.ts` | The launcher's decision logic with network and spawning injected: config permission refusal, chat allowlist, keyword→spawn mapping, offset-before-action ordering, stop-match verification, single-instance lock |
 
-First run: `npx playwright install chromium` (~92MB). Token fixed via `E2E_AUTH_TOKEN` env (default `e2e-test-token-cwt-12345`).
+Token fixed via `E2E_AUTH_TOKEN` env (default `e2e-test-token-cwt-12345`).
 
-The specs that assert on real terminal output need `/bin/zsh` (the pty spawns
-it) and skip themselves without it — CI installs zsh explicitly so they can
-never skip silently there.
+Each `@playwright/test` release needs its own Chromium build. `npm test` runs
+`playwright install chromium` first, which is a no-op once that build is
+present. Otherwise it downloads Chromium and its headless shell, about 290MB
+on macOS arm64 for Playwright 1.64. Calling `npm run test:e2e` directly
+after a Playwright upgrade fails every browser spec with "Executable doesn't
+exist" until you run `npx playwright install chromium`. On a bare Linux host,
+also run `npx playwright install-deps chromium` once (needs root).
+
+No spec ever runs the real Claude Code CLI. Every test server gets the fake
+`claude` from `e2e/resume-fixtures.ts` as `CLAUDE_BIN`, so the result does not
+depend on whether `claude` is installed, logged in, or trusts the current
+directory.
+
+The three `resume-browser.spec.ts` specs that assert on real terminal output
+need `/bin/zsh` (the pty spawns it) and skip themselves without it. The list
+reporter marks them with `-` and ends with "3 skipped"; it does not print the
+reason, which is `the pty needs /bin/zsh`. CI installs zsh explicitly so they
+can never skip silently there. With zsh present nothing is skipped.
 
 ## How it works
 

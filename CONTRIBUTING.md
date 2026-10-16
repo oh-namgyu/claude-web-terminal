@@ -7,7 +7,7 @@ Thanks for your interest!
 ```bash
 npm install
 npm run lint
-npm test            # Playwright e2e (installs chromium on first run)
+npm test            # Playwright e2e (installs the matching Chromium when missing)
 npm start           # serves on http://127.0.0.1:8765
 ```
 
