@@ -21,6 +21,27 @@ All notable changes to claude-web-terminal.
 - **`SECURITY.md`** — private reporting via GitHub Security Advisories with an explicit threat model and in-scope list.
 - **e2e security spec** (`e2e/security.spec.ts`) — 14 regression cases covering Origin gate, metadata schema, session-id validation, WS auth, rate-limit burst, resume-cwd containment. Full suite: 20/20 passing.
 
+## [0.8.1](https://github.com/oh-namgyu/claude-web-terminal/compare/v0.8.0...v0.8.1) (2026-10-16)
+
+
+### Continuous Integration
+
+* build the versioned image when release-please cuts a release ([b68083e](https://github.com/oh-namgyu/claude-web-terminal/commit/b68083ea6839b65bdebf1fa7f4b631af77b3954e))
+
+
+### Build System
+
+* **deps-dev:** bump the dev group across 1 directory with 3 updates ([#29](https://github.com/oh-namgyu/claude-web-terminal/issues/29)) ([e3dc92e](https://github.com/oh-namgyu/claude-web-terminal/commit/e3dc92e99684db08ef0b01b620f60c10eb68c35f))
+* **deps:** bump brace-expansion and proxy-addr for new advisories ([26bae50](https://github.com/oh-namgyu/claude-web-terminal/commit/26bae50366060783da29d79cbe40e9644574c693))
+* **deps:** bump the production group across 1 directory with 3 updates ([#28](https://github.com/oh-namgyu/claude-web-terminal/issues/28)) ([714b86e](https://github.com/oh-namgyu/claude-web-terminal/commit/714b86e9631074286fe272e55198fced6d96c1fb))
+* require Node 22, the only version CI tests ([67fb1e8](https://github.com/oh-namgyu/claude-web-terminal/commit/67fb1e86e9532f62fd866d8ce87e27002c7575b0))
+
+
+### Tests
+
+* install the matching Playwright Chromium before npm test ([e9a5b58](https://github.com/oh-namgyu/claude-web-terminal/commit/e9a5b58e1cb9c0f96347e9e1842f6516302782ed))
+* never launch the real claude CLI from the e2e servers ([7a0b28e](https://github.com/oh-namgyu/claude-web-terminal/commit/7a0b28ef89a7425f30fe8fe2470633a6bdd1788f))
+
 ## [0.8.0](https://github.com/oh-namgyu/claude-web-terminal/compare/v0.7.1...v0.8.0) (2026-09-28)
 
 
